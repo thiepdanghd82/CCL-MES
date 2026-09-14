@@ -304,16 +304,16 @@ public static class WindowRegistryKeys
 
     /// <summary>RBAC roles for QcLibrary (mirrors its page <c>[Authorize]</c>).
     /// The other three are any-auth (null roles).</summary>
-    public static readonly string[] QcLibraryRoles = { "Admin", "Supervisor", "Engineer", "QC" };
+    public static readonly string[] QcLibraryRoles = { "Admin", "Supervisor", "EngineerProduction", "EngineerQuality", "Engineer", "QC" };
 
     /// <summary>RBAC roles for the 4 NPI grids (mirror their page
     /// <c>[Authorize(Roles="Admin,Supervisor,Engineer,QC")]</c>). Home + Semi +
     /// the 3 QMS modules are any-auth (null roles) so they carry no array.</summary>
-    public static readonly string[] NpiRoles = { "Admin", "Supervisor", "Engineer", "QC" };
+    public static readonly string[] NpiRoles = { "Admin", "Supervisor", "EngineerProduction", "EngineerQuality", "Engineer", "QC" };
 
     /// <summary>RBAC roles for the Spec list + detail windows (mirror
     /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer")]</c> on both pages).</summary>
-    public static readonly string[] SpecRoles = { "Admin", "Supervisor", "Engineer" };
+    public static readonly string[] SpecRoles = { "Admin", "Supervisor", "EngineerProduction", "EngineerQuality", "Engineer" };
 
     /// <summary>RBAC roles for the QMS Inspection Queue windows (mirror the
     /// NavMenu <c>&lt;AuthorizeView Roles="Admin,Supervisor,QC"&gt;</c> that

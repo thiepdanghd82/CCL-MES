@@ -20,6 +20,7 @@ public static class QcCaptureGateVm
     /// <c>SpecQcCaptureService._editorRoles</c>. Admin + Engineer.</summary>
     public static bool IsEditor(string? role) =>
         string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, "EngineerQuality", StringComparison.OrdinalIgnoreCase)
         || string.Equals(role, "Engineer", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>FAIL requires a non-empty reason code referencing an

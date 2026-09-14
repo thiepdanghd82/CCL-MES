@@ -110,7 +110,7 @@ Domain/Application sau cutover A1.
 
 ---
 
-## A4 — Tách vai Engineer làm hai: kỹ sư SẢN XUẤT và kỹ sư CHẤT LƯỢNG
+## ~~A4 — Tách vai Engineer làm hai: kỹ sư SẢN XUẤT và kỹ sư CHẤT LƯỢNG~~ ✅ ĐÃ XONG 2026-09-14
 
 **Thiệp chốt 2026-09-14.** Xưởng có hai ngạch kỹ sư khác nhau, và luồng khác nhau:
 
@@ -146,11 +146,49 @@ waiver được ⇒ luật 4-mắt chặn mỗi ngày, và lối thoát rẻ nh�
 - [ ] Test 4-mắt hiện có vẫn xanh, và thêm ca "kỹ sư chất lượng xác nhận rồi
       kỹ sư sản xuất ký" = ĐƯỢC
 
+**Đã đóng.** 10 test `A4EngineerSplitRbacTests` (mỗi surface: 1 vai được phép +
+≥1 vai bị chặn) · 2 test khoá hai danh sách vai không lệch nhau · bài học **L95**.
+
+**Phát sinh khi làm, đã xử lý trong cùng đợt:**
+- Cổng duyệt bản vẽ đã phân ngạch bằng `Role="Engineer" + Department` (npi ·
+  production · qc) từ trước. Đã hoà hai mô hình thay vì đè lên nhau.
+- `QcSpecController` — soạn kế hoạch QC chỉ có `[Authorize]` trần ⇒ Operator
+  cũng ghi được. Đã thêm policy `QcPlanWrite`.
+
+**Còn nợ (đo 2026-09-14):** 33 endpoint ghi khác cũng không có policy tường
+minh. Phần lớn chính đáng (đăng nhập · tự đổi mật khẩu · heartbeat thiết bị ·
+thao tác vận hành trên chuyền) nhưng CHƯA ai rà từng cái và ghi lại lý do.
+Xem mục A5.
+
 **Bẫy đã biết.** Đây là RBAC nên mọi thay đổi mặc định vai là STOP-gate
 (`cmes-secrets-jwt`). Và đừng thay `Engineer` → `EngineerProduction,EngineerQuality`
 bằng find/replace: một nửa số chỗ ấy là quyền ĐỌC spec (cả hai vai nên có),
 nửa còn lại là quyền KÝ (phải phân biệt). Thay mù là cấp quyền ký cho người
 không nên có.
+
+---
+
+## A5 — Rà 33 endpoint ghi không có policy tường minh
+
+**Vấn đề.** Luật vàng #1 của skill `cmes-rbac-matrix`: mọi endpoint mutation
+phải có `[Authorize(Policy=...)]` tường minh; dựa vào `FallbackPolicy` nghĩa là
+"ai đăng nhập cũng ghi được". Đo 2026-09-14 khi làm A4: **33 endpoint** như vậy
+(sau khi A4 đã đóng 2 cái nặng nhất).
+
+Phần lớn có lý do chính đáng — `AuthController` (đăng nhập/refresh/logout),
+`SettingsController` (tự đổi mật khẩu, tự sửa hồ sơ), `DevicesController`
+(heartbeat/scan-log), và các thao tác vận hành trên chuyền mà mọi vai đứng máy
+đều làm. Nhưng **chưa ai rà từng cái và ghi lại lý do**, nên không phân biệt
+được "cố ý mở" với "quên gác".
+
+**Work-class** W6 · **Agent** `cmes-implementer` · **Skill** `cmes-rbac-matrix`
+
+**Nghiệm thu**
+- [ ] Mỗi endpoint trong danh sách: hoặc gắn policy, hoặc có chú thích một dòng
+      nói RÕ vì sao cố ý để mở
+- [ ] Gate mới: endpoint ghi không policy và không chú thích miễn trừ ⇒ đỏ
+      (ratchet, baseline = số còn lại sau đợt rà)
+- [ ] Mỗi endpoint được gắn policy có test 1 vai được phép + 1 vai bị chặn
 
 ---
 

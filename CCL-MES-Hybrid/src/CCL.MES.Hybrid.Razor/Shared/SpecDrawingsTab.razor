@@ -49,7 +49,7 @@ else
                     <span class="spec-status-pill drawing-status-@slot.DrawingStatus.ToString().ToLowerInvariant()">
                         @DrawingSlotStatusLabel(slot.DrawingStatus)
                     </span>
-                    <AuthorizeView Roles="Admin,Engineer" Context="ctx">
+                    <AuthorizeView Roles="Admin,EngineerProduction,Engineer" Context="ctx">
                         <button type="button" class="grid-btn grid-btn-primary drawing-upload-btn"
                                 disabled="@submitting"
                                 @onclick="() => OnUploadAsync(slot)">
@@ -109,7 +109,7 @@ else
                                             @onclick="() => OnDownloadAsync(slot, v)">
                                         @T("specdrawtab.action.save")
                                     </button>
-                                    <AuthorizeView Roles="Admin,Engineer" Context="del">
+                                    <AuthorizeView Roles="Admin,EngineerProduction,Engineer" Context="del">
                                         <button type="button" class="grid-btn drawing-dl-btn drawing-del-btn"
                                                 disabled="@dl" title="@T("specdrawtab.action.delete.title")"
                                                 @onclick="() => OpenDeleteModal(slot, v)">

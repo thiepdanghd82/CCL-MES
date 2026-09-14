@@ -59,7 +59,7 @@
         </a>
         @if (HwOptions.Value.ScanEnabled)
         {
-            <AuthorizeView Roles="Admin,Supervisor,Engineer">
+            <AuthorizeView Roles="Admin,Supervisor,EngineerProduction,EngineerQuality,Engineer">
                 <a class="settings-card" href="/hardware">
                     <span class="settings-card-icon"><Icon Name="printer" /></span>
                     <span class="settings-card-title">@T("settings.devices.title")</span>

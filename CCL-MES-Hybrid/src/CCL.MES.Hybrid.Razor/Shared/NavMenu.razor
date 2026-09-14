@@ -104,7 +104,7 @@
             @PinBtn("/", "nav.home")
         </div>
 
-        <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
+        <AuthorizeView Roles="Admin,Supervisor,EngineerProduction,EngineerQuality,Engineer,QC">
             @* Carbon SideNavMenu — the NPI group is a collapsible accordion. *@
             <div class="app-nav-grp" data-testid="nav-grp-npi" hidden="@GroupHiddenByFilter(GrpNpi)">
                 @GroupHeader(GrpNpi, "nav.section.npi")
@@ -133,7 +133,7 @@
                                 @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)">@Ico("workcenter")<span>@T("nav.npi.workcenters")</span></button>
                         @PinBtn(WindowRegistryKeys.NpiWorkCenters, "nav.npi.workcenters")
                     </div>
-                    <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
+                    <AuthorizeView Roles="Admin,Supervisor,EngineerProduction,EngineerQuality,Engineer" Context="specCtx">
                         <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.Specs" data-nav-hit="@Hit(WindowRegistryKeys.Specs)">
                             <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
                                     @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)">@Ico("spec")<span>@T("nav.npi.spec")</span></button>

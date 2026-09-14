@@ -89,7 +89,7 @@
     @* P10.5c-1 — Create Spec button. NpiSpecWrite policy = Admin / Engineer
        on the server; we mirror role-gate on the client so other roles
        don't see the affordance. *@
-    <AuthorizeView Roles="Admin,Engineer">
+    <AuthorizeView Roles="Admin,EngineerProduction,Engineer">
         <button type="button" class="grid-btn grid-btn-secondary"
                 @onclick="OpenImportModal">⤓ @T("specs.import.xlsx")</button>
         <button type="button" class="grid-btn grid-btn-primary"

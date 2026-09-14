@@ -41,6 +41,7 @@ public class SpecQcWindowService
     private static readonly HashSet<string> _editorRoles = new(StringComparer.OrdinalIgnoreCase)
     {
         "Admin",
+        "EngineerQuality",
         "Engineer",
     };
 

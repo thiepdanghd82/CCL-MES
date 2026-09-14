@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="vi" class="theme-dark" data-anim="trace">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="generator" content="Diagrify 0.1.0"/>
+<title>CCL-MES — Work Order State Machine (P10.7) · Diagrify</title>
+<style id="diagram-css">
+/* ---- Theme tokens (also embedded into exported SVG) ---- */
+.theme-dark{
+  --bg:#070b14;--panel:#0d1220;--panel-2:#111827;--border:#1f2937;--border-2:#2b3648;
+  --fg:#e5e7eb;--fg-2:#9ca3af;--fg-3:#6b7280;--grid:#161d2c;--accent:#38bdf8;
+  --frontend:#22d3ee;--backend:#34d399;--database:#a78bfa;--cloud:#fbbf24;--security:#fb7185;--messagebus:#f472b6;--external:#94a3b8;
+  --process:#60a5fa;--machine:#f59e0b;--quality:#f43f5e;--storage:#c084fc;--people:#2dd4bf;--document:#a3e635;
+  --start:#22d3ee;--active:#34d399;--waiting:#fbbf24;--success:#4ade80;--failure:#fb7185;--neutral:#94a3b8;
+  --edge:#64748b;--edge-emphasis:#38bdf8;--edge-security:#fb7185;--edge-dashed:#94a3b8;--label-bg:#0d1220;
+  --node-fill:rgba(255,255,255,.035);--shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.theme-light{
+  --bg:#f5f7fb;--panel:#ffffff;--panel-2:#f1f5f9;--border:#dbe2ea;--border-2:#c7d0dc;
+  --fg:#0f172a;--fg-2:#475569;--fg-3:#64748b;--grid:#e6ebf2;--accent:#0284c7;
+  --frontend:#0891b2;--backend:#059669;--database:#7c3aed;--cloud:#d97706;--security:#e11d48;--messagebus:#db2777;--external:#475569;
+  --process:#2563eb;--machine:#d97706;--quality:#e11d48;--storage:#9333ea;--people:#0d9488;--document:#65a30d;
+  --start:#0891b2;--active:#059669;--waiting:#d97706;--success:#16a34a;--failure:#e11d48;--neutral:#475569;
+  --edge:#64748b;--edge-emphasis:#0284c7;--edge-security:#e11d48;--edge-dashed:#64748b;--label-bg:#ffffff;
+  --node-fill:rgba(15,23,42,.02);--shadow:0 10px 30px rgba(15,23,42,.08);
+}
+/* ---- Diagram (SVG) ---- */
+svg.diagram{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:block;max-width:100%;height:auto;margin:0 auto}
+.c-canvas{fill:var(--panel)}
+.c-grid{stroke:var(--grid);fill:none;stroke-width:.6}
+.node .node-shape{fill:var(--node-fill);stroke:var(--type,var(--external));stroke-width:1.6}
+.node.v-emphasis .node-shape{stroke-width:2.4;filter:drop-shadow(0 0 6px var(--type))}
+.node.v-dashed .node-shape{stroke-dasharray:6 4}
+.node.v-security .node-shape{stroke:var(--security)}
+.node .node-label{fill:var(--fg);font-size:13px;font-weight:700}
+.node .node-sub{fill:var(--fg-2);font-size:10.5px}
+.node .node-tag rect{fill:var(--type);opacity:.92}
+.node .node-tag text{fill:var(--bg);font-size:9.5px;font-weight:700;letter-spacing:.02em}
+.node{cursor:pointer;outline:none;transition:opacity .25s ease}
+.node:focus .node-shape,.node:hover .node-shape{stroke-width:2.6}
+.node.mirror{pointer-events:none;opacity:.55}
+.n-frontend{--type:var(--frontend)}.n-backend{--type:var(--backend)}.n-database{--type:var(--database)}.n-cloud{--type:var(--cloud)}
+.n-security{--type:var(--security)}.n-messagebus{--type:var(--messagebus)}.n-external{--type:var(--external)}
+.n-process{--type:var(--process)}.n-machine{--type:var(--machine)}.n-quality{--type:var(--quality)}.n-storage{--type:var(--storage)}
+.n-people{--type:var(--people)}.n-document{--type:var(--document)}
+.n-start{--type:var(--start)}.n-active{--type:var(--active)}.n-waiting{--type:var(--waiting)}.n-success{--type:var(--success)}.n-failure{--type:var(--failure)}.n-neutral{--type:var(--neutral)}
+.edge{transition:opacity .25s ease}
+.edge .edge-hit{fill:none;stroke:transparent;stroke-width:14}
+.edge .edge-line{fill:none;stroke:var(--edge);stroke-width:1.6;stroke-linejoin:round}
+.edge.e-emphasis .edge-line{stroke:var(--edge-emphasis);stroke-width:2.2}
+.edge.e-security .edge-line{stroke:var(--edge-security);stroke-dasharray:7 4}
+.edge.e-dashed .edge-line{stroke:var(--edge-dashed);stroke-dasharray:5 4}
+.m-default{fill:var(--edge)}.m-emphasis{fill:var(--edge-emphasis)}.m-security{fill:var(--edge-security)}.m-dashed{fill:var(--edge-dashed)}
+.edge-label rect{fill:var(--label-bg);stroke:var(--border);stroke-width:.8}
+.edge-label text{fill:var(--fg-2);font-size:10.5px}
+.edge.e-emphasis .edge-label text{fill:var(--edge-emphasis)}
+.edge.e-security .edge-label text{fill:var(--edge-security)}
+.boundary rect{fill:none;stroke:var(--cloud);stroke-dasharray:8 5;stroke-width:1.2;opacity:.9}
+.boundary.b-security-group rect{stroke:var(--security)}
+.boundary.b-zone rect,.boundary.b-site rect{stroke:var(--fg-3)}
+.boundary.b-department rect{stroke:var(--people)}
+.boundary text{fill:var(--cloud);font-size:11px;font-weight:700}
+.boundary.b-security-group text{fill:var(--security)}
+.boundary.b-zone text,.boundary.b-site text{fill:var(--fg-3)}
+.boundary.b-department text{fill:var(--people)}
+.lane .lane-bg{fill:transparent}
+.lane.lane-alt .lane-bg{fill:var(--panel-2);opacity:.6}
+.lane .lane-head{fill:var(--panel-2);stroke:var(--border)}
+.lane.l-exception .lane-head{fill:var(--security);fill-opacity:.12}
+.lane.l-emphasis .lane-head{fill:var(--accent);fill-opacity:.12}
+.lane-label{fill:var(--fg);font-size:12px;font-weight:700}
+.lane-frame{fill:none;stroke:var(--border-2)}
+.phase rect{fill:var(--panel-2);stroke:var(--border-2)}
+.phase.v-emphasis rect{stroke:var(--accent)}
+.phase.v-dashed rect{stroke-dasharray:6 4}
+.phase text{fill:var(--fg-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.group rect{fill:var(--fg-3);fill-opacity:.06;stroke:var(--fg-3);stroke-dasharray:5 4}
+.group.v-emphasis rect{stroke:var(--accent);fill:var(--accent);fill-opacity:.06}
+.group.v-security rect{stroke:var(--security);fill:var(--security);fill-opacity:.06}
+.group text{fill:var(--fg-3);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.lifeline{stroke:var(--border-2);stroke-dasharray:4 5;stroke-width:1.2}
+.activation{fill:var(--accent);fill-opacity:.18;stroke:var(--accent);stroke-width:1}
+.segment rect{fill:var(--fg-3);fill-opacity:.05;stroke:var(--fg-3);stroke-dasharray:6 4}
+.segment .segment-tag{fill:var(--fg-3);fill-opacity:.9;stroke:none}
+.segment .segment-kind{fill:var(--bg);font-size:9.5px;font-weight:800}
+.segment .segment-label{fill:var(--fg-2);font-size:10.5px}
+.segment.s-alt rect,.segment.s-opt rect{stroke:var(--cloud)}.segment.s-alt .segment-tag,.segment.s-opt .segment-tag{fill:var(--cloud)}
+.segment.s-loop rect{stroke:var(--accent)}.segment.s-loop .segment-tag{fill:var(--accent)}
+.message-note{fill:var(--fg-3);font-size:9.5px;font-style:italic}
+.rail{fill:var(--accent);fill-opacity:.05;stroke:var(--accent);stroke-opacity:.35;stroke-dasharray:6 4}
+.rail-label{fill:var(--accent);font-size:9.5px;font-weight:800;letter-spacing:.14em;opacity:.8}
+/* focus / dimming */
+.has-focus .node.dim,.has-focus .edge.dim{opacity:.14}
+.has-focus .node.hot .node-shape{stroke-width:2.8;filter:drop-shadow(0 0 8px var(--type))}
+.has-focus .edge.hot .edge-line{stroke-width:2.8}
+/* trace motion */
+@keyframes trace{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
+.play .edge .edge-line{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:trace 1.1s cubic-bezier(.4,0,.2,1) forwards;animation-delay:calc(var(--i,0)*.22s)}
+@media (prefers-reduced-motion:reduce){.play .edge .edge-line{animation:none;stroke-dashoffset:0}}
+</style>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{padding:22px clamp(16px,3vw,40px) 40px;min-height:100vh}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.title{display:flex;gap:14px;align-items:flex-start}
+.title .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);margin-top:12px;box-shadow:0 0 12px var(--accent)}
+h1{font-size:clamp(18px,2.4vw,26px);margin:0 0 4px;font-weight:800;letter-spacing:-.01em}
+.subtitle{color:var(--fg-2);font-size:13px;margin:0}
+.kind{display:inline-block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid var(--border-2);border-radius:999px;padding:3px 9px;margin-top:8px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--border-2);border-radius:9px;padding:8px 12px;cursor:pointer;font-size:12.5px}
+button:hover,select:hover{border-color:var(--accent)}
+button kbd{margin-left:8px;color:var(--fg-3);font-size:10px;border:1px solid var(--border);border-radius:4px;padding:1px 4px}
+input[type=search]{width:190px;cursor:text}
+.menu{position:relative}
+.menu ul{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--border-2);border-radius:10px;list-style:none;padding:6px;margin:0;min-width:210px;box-shadow:var(--shadow);z-index:20}
+.menu ul[hidden]{display:none}
+.menu li button{display:block;width:100%;text-align:left;border:none;background:none;padding:8px 10px;border-radius:7px}
+.menu li button:hover{background:var(--panel-2)}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stage{overflow:hidden;cursor:grab;touch-action:none;min-height:320px}
+.stage.dragging{cursor:grabbing}
+.stage-inner{transform-origin:0 0;will-change:transform;padding:18px}
+.focusbar{position:absolute;left:14px;top:14px;display:flex;gap:6px;align-items:center;background:var(--panel-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 8px;font-size:12px;z-index:5}
+.focusbar[hidden]{display:none}
+.focusbar strong{color:var(--accent)}
+.focusbar button{padding:4px 8px;font-size:11px}
+.legend{border-top:1px solid var(--border);background:var(--panel-2);padding:8px 16px;font-size:11px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
+.legend[hidden]{display:none}
+.legend .lg{display:flex;gap:8px;align-items:center;color:var(--fg-2)}
+.legend .sw{width:16px;height:10px;border-radius:3px;border:1.6px solid var(--c)}
+.legend .sw.line{height:0;border-width:0 0 2px 0;width:18px}
+.legend .sw.dash{border-style:dashed}
+.legend h4{margin:0 10px 0 0;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.card h3{margin:0 0 8px;font-size:13px;display:flex;gap:8px;align-items:center}
+.card h3 i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.card ul{margin:0;padding-left:16px;color:var(--fg-2);font-size:12px;line-height:1.55}
+.hint{color:var(--fg-3);font-size:11px;margin-top:14px;display:flex;gap:14px;flex-wrap:wrap}
+.hint kbd{border:1px solid var(--border-2);border-radius:4px;padding:0 5px;color:var(--fg-2)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal[hidden]{display:none}
+.modal .box{background:var(--panel);border:1px solid var(--border-2);border-radius:16px;max-width:640px;width:100%;padding:22px 24px;box-shadow:var(--shadow);max-height:85vh;overflow:auto}
+.modal h2{margin:0 0 10px;font-size:16px}
+.modal table{width:100%;border-collapse:collapse;font-size:12.5px}
+.modal td{padding:6px 4px;border-bottom:1px solid var(--border);color:var(--fg-2)}
+.modal td:first-child{color:var(--fg);width:44%}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12px;z-index:60;opacity:0;transition:opacity .2s}
+.toast.show{opacity:1}
+.dot-cyan{--c:var(--frontend)}.dot-emerald{--c:var(--backend)}.dot-amber{--c:var(--cloud)}.dot-rose{--c:var(--security)}.dot-violet{--c:var(--database)}.dot-slate{--c:var(--external)}
+@media (max-width:720px){header{flex-direction:column}input[type=search]{width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <span class="dot"></span>
+    <div>
+      <h1 id="title">CCL-MES — Work Order State Machine (P10.7)</h1>
+      <p class="subtitle" id="subtitle">13 MesPhase · nguồn: CCL-MES-Hybrid/docs/P10.7-WO-STATE-CONTRACT.md §3.1–3.4 (7e-1 amendment)</p>
+      <span class="kind">lifecycle</span>
+    </div>
+  </div>
+  <div class="toolbar">
+    <select id="views" title="Guided views" hidden></select>
+    <input id="search" type="search" placeholder="Tìm nút…" aria-label="Tìm nút…"/>
+    <button id="play" hidden>Chạy mô phỏng<kbd>P</kbd></button>
+    <button id="theme">Giao diện<kbd>T</kbd></button>
+    <div class="menu">
+      <button id="export">Xuất ▾<kbd>E</kbd></button>
+      <ul id="export-menu" hidden>
+        <li><button data-export="png">Tải PNG (2×)</button></li>
+        <li><button data-export="png-copy">Sao chép PNG</button></li>
+        <li><button data-export="svg">Tải SVG</button></li>
+        <li><button data-export="json">Tải nguồn JSON</button></li>
+      </ul>
+    </div>
+    <button id="help" title="Hướng dẫn sơ đồ">?</button>
+  </div>
+</header>
+
+<div class="panel">
+  <div class="focusbar" id="focusbar" hidden>
+    <span>Đang chọn: <strong id="focus-name"></strong></span>
+    <button data-reach="upstream">Ngược dòng</button>
+    <button data-reach="downstream">Xuôi dòng</button>
+    <button data-reach="clear">✕</button>
+  </div>
+  <div class="stage" id="stage"><div class="stage-inner" id="stage-inner">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2564 336" width="2564" height="336" role="img" aria-label="CCL-MES — Work Order State Machine (P10.7)" class="diagram">
+<defs>
+<marker id="arrow-default" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 9 3.5, 0 7" class="m-default"/></marker>
+<marker id="arrow-emphasis" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 9 3.5, 0 7" class="m-emphasis"/></marker>
+<marker id="arrow-security" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 9 3.5, 0 7" class="m-security"/></marker>
+<marker id="arrow-dashed" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 9 3.5, 0 7" class="m-dashed"/></marker>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" class="c-grid"/></pattern>
+</defs>
+<rect class="c-canvas" x="0" y="0" width="2564" height="336" fill="url(#grid)"/>
+<rect class="rail" x="32" y="48" width="2500" height="116" rx="12"/>
+<text class="rail-label" x="46" y="60" dominant-baseline="middle">MAIN RAIL</text>
+<g class="edge e-emphasis" data-id="t-scan" data-from="new" data-to="prepress">
+<path class="edge-hit" d="M229 106 L335 106"/>
+<path class="edge-line" d="M229 106 L335 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="253" y="84" width="58" height="18" rx="4"/><text x="282" y="93.5" text-anchor="middle" dominant-baseline="middle">SCAN_WO</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-setting-start" data-from="prepress" data-to="setting">
+<path class="edge-hit" d="M479 106 L585 106"/>
+<path class="edge-line" d="M479 106 L585 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="482.5" y="84" width="99" height="18" rx="4"/><text x="532" y="93.5" text-anchor="middle" dominant-baseline="middle">SETTING_START</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-setting-done" data-from="setting" data-to="ipqc-wait">
+<path class="edge-hit" d="M729 106 L835 106"/>
+<path class="edge-line" d="M729 106 L835 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="736" y="84" width="92" height="18" rx="4"/><text x="782" y="93.5" text-anchor="middle" dominant-baseline="middle">SETTING_DONE</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-go-run" data-from="ipqc-wait" data-to="ipqc-approved">
+<path class="edge-hit" d="M979 106 L1085 106"/>
+<path class="edge-line" d="M979 106 L1085 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="989" y="84" width="86" height="18" rx="4"/><text x="1032" y="93.5" text-anchor="middle" dominant-baseline="middle">IPQC_GO_RUN</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-run-start" data-from="ipqc-approved" data-to="running">
+<path class="edge-hit" d="M1229 106 L1335 106"/>
+<path class="edge-line" d="M1229 106 L1335 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="1246" y="84" width="72" height="18" rx="4"/><text x="1282" y="93.5" text-anchor="middle" dominant-baseline="middle">RUN_START</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-run-finish" data-from="running" data-to="done">
+<path class="edge-hit" d="M1479 106 L1585 106"/>
+<path class="edge-line" d="M1479 106 L1585 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="1492.5" y="84" width="79" height="18" rx="4"/><text x="1532" y="93.5" text-anchor="middle" dominant-baseline="middle">RUN_FINISH</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-cascade" data-from="done" data-to="fqc-pending">
+<path class="edge-hit" d="M1729 106 L1835 106"/>
+<path class="edge-line" d="M1729 106 L1835 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="1736" y="84" width="92" height="18" rx="4"/><text x="1782" y="93.5" text-anchor="middle" dominant-baseline="middle">auto cascade</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-fqc-pass" data-from="fqc-pending" data-to="oqc-pending">
+<path class="edge-hit" d="M1979 106 L2085 106"/>
+<path class="edge-line" d="M1979 106 L2085 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="1999.5" y="84" width="65" height="18" rx="4"/><text x="2032" y="93.5" text-anchor="middle" dominant-baseline="middle">FQC_PASS</text></g>
+</g>
+<g class="edge e-emphasis" data-id="t-oqc-pass" data-from="oqc-pending" data-to="shipped">
+<path class="edge-hit" d="M2229 106 L2335 106"/>
+<path class="edge-line" d="M2229 106 L2335 106" marker-end="url(#arrow-emphasis)" style="--len:106"/>
+<g class="edge-label"><rect x="2222" y="56" width="120" height="18" rx="4"/><text x="2282" y="65.5" text-anchor="middle" dominant-baseline="middle">OQC_PASS · 3-sig</text></g>
+</g>
+<g class="edge e-default" data-id="t-special" data-from="ipqc-wait" data-to="qa-pending">
+<path class="edge-hit" d="M907 135 L907 209"/>
+<path class="edge-line" d="M907 135 L907 209" marker-end="url(#arrow-default)" style="--len:74"/>
+<g class="edge-label"><rect x="854" y="163" width="106" height="18" rx="4"/><text x="907" y="172.5" text-anchor="middle" dominant-baseline="middle">SPECIAL_ACCEPT</text></g>
+</g>
+<g class="edge e-default" data-id="t-qa-approve" data-from="qa-pending" data-to="ipqc-approved">
+<path class="edge-hit" d="M979 238 L1032 238 L1032 106 L1085 106"/>
+<path class="edge-line" d="M979 238 L1032 238 L1032 106 L1085 106" marker-end="url(#arrow-default)" style="--len:238"/>
+<g class="edge-label"><rect x="992.5" y="163" width="79" height="18" rx="4"/><text x="1032" y="172.5" text-anchor="middle" dominant-baseline="middle">QA_APPROVE</text></g>
+</g>
+<g class="edge e-security" data-id="t-qa-reject" data-from="qa-pending" data-to="prepress">
+<path class="edge-hit" d="M878.2 209 L878.2 184 L538 184 L538 106 L479 106"/>
+<path class="edge-line" d="M878.2 209 L878.2 184 L538 184 L538 106 L479 106" marker-end="url(#arrow-security)" style="--len:502.2"/>
+<g class="edge-label"><rect x="496" y="136" width="72" height="18" rx="4"/><text x="532" y="145.5" text-anchor="middle" dominant-baseline="middle">QA_REJECT</text></g>
+</g>
+<g class="edge e-security" data-id="t-stop-line" data-from="ipqc-wait" data-to="prepress">
+<path class="edge-hit" d="M878.2 135 L878.2 160 L435.8 160 L435.8 135"/>
+<path class="edge-line" d="M878.2 135 L878.2 160 L435.8 160 L435.8 135" marker-end="url(#arrow-security)" style="--len:492.4"/>
+<g class="edge-label"><rect x="604" y="164" width="106" height="18" rx="4"/><text x="657" y="173.5" text-anchor="middle" dominant-baseline="middle">IPQC_STOP_LINE</text></g>
+</g>
+<g class="edge e-default" data-id="t-pause" data-from="running" data-to="paused">
+<path class="edge-hit" d="M1407 135 L1407 209"/>
+<path class="edge-line" d="M1407 135 L1407 209" marker-end="url(#arrow-default)" style="--len:74"/>
+<g class="edge-label"><rect x="1371" y="163" width="72" height="18" rx="4"/><text x="1407" y="172.5" text-anchor="middle" dominant-baseline="middle">RUN_PAUSE</text></g>
+</g>
+<g class="edge e-default" data-id="t-resume" data-from="paused" data-to="running">
+<path class="edge-hit" d="M1435.8 209 L1435.8 192 L1538 192 L1538 106 L1479 106"/>
+<path class="edge-line" d="M1435.8 209 L1435.8 192 L1538 192 L1538 106 L1479 106" marker-end="url(#arrow-default)" style="--len:264.2"/>
+<g class="edge-label"><rect x="1492.5" y="140" width="79" height="18" rx="4"/><text x="1532" y="149.5" text-anchor="middle" dominant-baseline="middle">RUN_RESUME</text></g>
+</g>
+<g class="edge e-dashed" data-id="t-finish-paused" data-from="paused" data-to="done">
+<path class="edge-hit" d="M1479 238 L1532 238 L1532 106 L1585 106"/>
+<path class="edge-line" d="M1479 238 L1532 238 L1532 106 L1585 106" marker-end="url(#arrow-dashed)" style="--len:238"/>
+<g class="edge-label"><rect x="1492.5" y="163" width="79" height="18" rx="4"/><text x="1532" y="172.5" text-anchor="middle" dominant-baseline="middle">RUN_FINISH</text></g>
+</g>
+<g class="edge e-security" data-id="t-fqc-reject" data-from="fqc-pending" data-to="prepress">
+<path class="edge-hit" d="M1878.2 77 L1878.2 52 L435.8 52 L435.8 77"/>
+<path class="edge-line" d="M1878.2 77 L1878.2 52 L435.8 52 L435.8 77" marker-end="url(#arrow-security)" style="--len:1492.4"/>
+<g class="edge-label"><rect x="1117.5" y="30" width="79" height="18" rx="4"/><text x="1157" y="39.5" text-anchor="middle" dominant-baseline="middle">FQC_REJECT</text></g>
+</g>
+<g class="edge e-security" data-id="t-oqc-reject" data-from="oqc-pending" data-to="fqc-pending">
+<path class="edge-hit" d="M2128.2 135 L2128.2 152 L1935.8 152 L1935.8 135"/>
+<path class="edge-line" d="M2128.2 135 L2128.2 152 L1935.8 152 L1935.8 135" marker-end="url(#arrow-security)" style="--len:226.4"/>
+<g class="edge-label"><rect x="1992.5" y="156" width="79" height="18" rx="4"/><text x="2032" y="165.5" text-anchor="middle" dominant-baseline="middle">OQC_REJECT</text></g>
+</g>
+<g class="edge e-dashed" data-id="t-setting-abort" data-from="setting" data-to="prepress">
+<path class="edge-hit" d="M628.2 77 L628.2 60 L435.8 60 L435.8 77"/>
+<path class="edge-line" d="M628.2 77 L628.2 60 L435.8 60 L435.8 77" marker-end="url(#arrow-dashed)" style="--len:226.4"/>
+<g class="edge-label"><rect x="455" y="38" width="154" height="18" rx="4"/><text x="532" y="47.5" text-anchor="middle" dominant-baseline="middle">SETTING_ABORT · admin</text></g>
+</g>
+<g class="edge e-dashed" data-id="t-oqc-done" data-from="oqc-pending" data-to="done">
+<path class="edge-hit" d="M2128.2 77 L2128.2 68 L1685.8 68 L1685.8 77"/>
+<path class="edge-line" d="M2128.2 77 L2128.2 68 L1685.8 68 L1685.8 77" marker-end="url(#arrow-dashed)" style="--len:460.4"/>
+<g class="edge-label"><rect x="1847" y="46" width="120" height="18" rx="4"/><text x="1907" y="55.5" text-anchor="middle" dominant-baseline="middle">recovery · admin</text></g>
+</g>
+<g class="edge e-dashed" data-id="t-cancel" data-from="new" data-to="cancelled">
+<path class="edge-hit" d="M157 135 L157 209"/>
+<path class="edge-line" d="M157 135 L157 209" marker-end="url(#arrow-dashed)" style="--len:74"/>
+<g class="edge-label"><rect x="94" y="163" width="126" height="18" rx="4"/><text x="157" y="172.5" text-anchor="middle" dominant-baseline="middle">WO_CANCEL · admin</text></g>
+</g>
+<g class="node n-start v-default" data-id="new" tabindex="0" role="button" aria-label="NEW — WO tạo từ IFS">
+<rect class="node-shape" x="85" y="77" width="144" height="58" rx="29"/>
+<text class="node-label" x="157" y="100" text-anchor="middle" dominant-baseline="middle">NEW</text>
+<text class="node-sub" x="157" y="117" text-anchor="middle" dominant-baseline="middle">WO tạo từ IFS</text>
+</g>
+<g class="node n-active v-default" data-id="prepress" tabindex="0" role="button" aria-label="PREPRESS — vật tư · bản · dao">
+<rect class="node-shape" x="335" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="407" y="100" text-anchor="middle" dominant-baseline="middle">PREPRESS</text>
+<text class="node-sub" x="407" y="117" text-anchor="middle" dominant-baseline="middle">vật tư · bản · dao</text>
+</g>
+<g class="node n-active v-default" data-id="setting" tabindex="0" role="button" aria-label="SETTING — canh máy · 4-eye">
+<rect class="node-shape" x="585" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="657" y="100" text-anchor="middle" dominant-baseline="middle">SETTING</text>
+<text class="node-sub" x="657" y="117" text-anchor="middle" dominant-baseline="middle">canh máy · 4-eye</text>
+</g>
+<g class="node n-waiting v-default" data-id="ipqc-wait" tabindex="0" role="button" aria-label="IPQC_WAIT — chờ IPQC ký">
+<rect class="node-shape" x="835" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="907" y="100" text-anchor="middle" dominant-baseline="middle">IPQC_WAIT</text>
+<text class="node-sub" x="907" y="117" text-anchor="middle" dominant-baseline="middle">chờ IPQC ký</text>
+<g class="node-tag"><rect x="917" y="68" width="56" height="16" rx="8"/><text x="945" y="76" text-anchor="middle" dominant-baseline="middle">signoff</text></g>
+</g>
+<g class="node n-active v-default" data-id="ipqc-approved" tabindex="0" role="button" aria-label="IPQC_APPROVED — được phép chạy">
+<rect class="node-shape" x="1085" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="1157" y="100" text-anchor="middle" dominant-baseline="middle">IPQC_APPROVED</text>
+<text class="node-sub" x="1157" y="117" text-anchor="middle" dominant-baseline="middle">được phép chạy</text>
+</g>
+<g class="node n-active v-default" data-id="running" tabindex="0" role="button" aria-label="RUNNING — run_session · qty">
+<rect class="node-shape" x="1335" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="1407" y="100" text-anchor="middle" dominant-baseline="middle">RUNNING</text>
+<text class="node-sub" x="1407" y="117" text-anchor="middle" dominant-baseline="middle">run_session · qty</text>
+</g>
+<g class="node n-neutral v-default" data-id="done" tabindex="0" role="button" aria-label="DONE — quá độ · cascade">
+<rect class="node-shape" x="1585" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="1657" y="100" text-anchor="middle" dominant-baseline="middle">DONE</text>
+<text class="node-sub" x="1657" y="117" text-anchor="middle" dominant-baseline="middle">quá độ · cascade</text>
+</g>
+<g class="node n-waiting v-default" data-id="fqc-pending" tabindex="0" role="button" aria-label="FQC_PENDING — chờ FQC ký">
+<rect class="node-shape" x="1835" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="1907" y="100" text-anchor="middle" dominant-baseline="middle">FQC_PENDING</text>
+<text class="node-sub" x="1907" y="117" text-anchor="middle" dominant-baseline="middle">chờ FQC ký</text>
+<g class="node-tag"><rect x="1917" y="68" width="56" height="16" rx="8"/><text x="1945" y="76" text-anchor="middle" dominant-baseline="middle">signoff</text></g>
+</g>
+<g class="node n-waiting v-default" data-id="oqc-pending" tabindex="0" role="button" aria-label="OQC_PENDING — 3 chữ ký · RoHS">
+<rect class="node-shape" x="2085" y="77" width="144" height="58" rx="8"/>
+<text class="node-label" x="2157" y="100" text-anchor="middle" dominant-baseline="middle">OQC_PENDING</text>
+<text class="node-sub" x="2157" y="117" text-anchor="middle" dominant-baseline="middle">3 chữ ký · RoHS</text>
+<g class="node-tag"><rect x="2167" y="68" width="56" height="16" rx="8"/><text x="2195" y="76" text-anchor="middle" dominant-baseline="middle">signoff</text></g>
+</g>
+<g class="node n-success v-default" data-id="shipped" tabindex="0" role="button" aria-label="SHIPPED — terminal">
+<rect class="node-shape" x="2335" y="77" width="144" height="58" rx="29"/>
+<text class="node-label" x="2407" y="100" text-anchor="middle" dominant-baseline="middle">SHIPPED</text>
+<text class="node-sub" x="2407" y="117" text-anchor="middle" dominant-baseline="middle">terminal</text>
+</g>
+<g class="node n-failure v-default" data-id="cancelled" tabindex="0" role="button" aria-label="CANCELLED — admin · terminal">
+<rect class="node-shape" x="85" y="209" width="144" height="58" rx="29"/>
+<text class="node-label" x="157" y="232" text-anchor="middle" dominant-baseline="middle">CANCELLED</text>
+<text class="node-sub" x="157" y="249" text-anchor="middle" dominant-baseline="middle">admin · terminal</text>
+</g>
+<g class="node n-waiting v-default" data-id="qa-pending" tabindex="0" role="button" aria-label="QA_PENDING — QA Manager ký">
+<rect class="node-shape" x="835" y="209" width="144" height="58" rx="8"/>
+<text class="node-label" x="907" y="232" text-anchor="middle" dominant-baseline="middle">QA_PENDING</text>
+<text class="node-sub" x="907" y="249" text-anchor="middle" dominant-baseline="middle">QA Manager ký</text>
+<g class="node-tag"><rect x="917" y="200" width="56" height="16" rx="8"/><text x="945" y="208" text-anchor="middle" dominant-baseline="middle">signoff</text></g>
+</g>
+<g class="node n-waiting v-default" data-id="paused" tabindex="0" role="button" aria-label="PAUSED — downtime reason">
+<rect class="node-shape" x="1335" y="209" width="144" height="58" rx="8"/>
+<text class="node-label" x="1407" y="232" text-anchor="middle" dominant-baseline="middle">PAUSED</text>
+<text class="node-sub" x="1407" y="249" text-anchor="middle" dominant-baseline="middle">downtime reason</text>
+</g>
+</svg>
+  </div></div>
+  <div class="legend" id="legend" >
+    <h4>Chú giải</h4>
+<div class="lg"><span class="sw" style="--c:var(--start)"></span>Bắt đầu</div>
+<div class="lg"><span class="sw" style="--c:var(--active)"></span>Đang xử lý</div>
+<div class="lg"><span class="sw" style="--c:var(--waiting)"></span>Chờ</div>
+<div class="lg"><span class="sw" style="--c:var(--neutral)"></span>Trung lập</div>
+<div class="lg"><span class="sw" style="--c:var(--success)"></span>Hoàn tất</div>
+<div class="lg"><span class="sw" style="--c:var(--failure)"></span>Thất bại</div>
+<div class="lg"><span class="sw line" style="--c:var(--edge)"></span>Luồng</div>
+<div class="lg"><span class="sw line" style="--c:var(--edge-emphasis)"></span>Luồng chính</div>
+<div class="lg"><span class="sw line dash" style="--c:var(--edge-security)"></span>Kiểm soát / ngoại lệ</div>
+<div class="lg"><span class="sw line dash" style="--c:var(--edge-dashed)"></span>Tùy chọn / bất đồng bộ</div>
+  </div>
+</div>
+
+<div class="cards" id="cards">
+<section class="card dot-cyan"><h3><i></i>Loại ô trong lưới 13×13</h3><ul><li>allowed — chỉ cần event (SCAN_WO, RUN_START, RUN_RESUME)</li><li>requires-condition — predicate domain (vật tư OK, setting item OK, ProducedQty &gt; 0)</li><li>requires-signoff — 4-eye: IPQC / QA Manager / FQC / OQC (3 chữ ký)</li><li>recovery-only — admin /force-phase, emit SYS_RECOVERY; 13 ô forceable / 169</li></ul></section>
+<section class="card dot-rose"><h3><i></i>Cạnh vẽ đại diện</h3><ul><li>Mọi trạng thái non-terminal → CANCELLED đều recovery-only; sơ đồ chỉ vẽ từ NEW</li><li>DONE → CANCELLED (7e-1) không vẽ để giữ sơ đồ đọc được</li><li>RUNNING → DONE trực tiếp bỏ QC: BLOCKED theo §3.3</li></ul></section>
+<section class="card dot-amber"><h3><i></i>Đồng bộ với code</h3><ul><li>WorkOrderStateMachine.IsForceablePhase phải khớp 13 ô forceable</li><li>AuditAction phải có đủ 20 hằng số §3.2</li><li>Optimistic lock RowVersion + Idempotency-Key trên mọi advance (§6)</li></ul></section>
+</div>
+
+<p class="hint"><span><kbd>/</kbd> Tìm nút…</span><span><kbd>T</kbd> Giao diện</span><span><kbd>E</kbd> Xuất</span><span><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd> thu phóng</span><span><kbd>Esc</kbd> bỏ chọn</span><span><kbd>?</kbd> Hướng dẫn sơ đồ</span></p>
+
+<div class="modal" id="modal" hidden>
+  <div class="box">
+    <h2>Hướng dẫn đọc sơ đồ</h2>
+    <table id="guide"></table>
+    <p class="subtitle" style="margin-top:12px">Mọi vùng sáng đều dựa trên nút và quan hệ do tác giả khai báo, không suy diễn thêm.</p>
+    <p style="text-align:right;margin:12px 0 0"><button id="modal-close">Đóng</button></p>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script id="diagram-data" type="application/json">{"version":"0.1.0","type":"lifecycle","slug":"ccl-mes-work-order-state-machine-p10-7","theme":"dark","animation":"trace","views":[{"id":"happy","label":"Luồng chuẩn NEW → SHIPPED","focus":["new","prepress","setting","ipqc-wait","ipqc-approved","running","done","fqc-pending","oqc-pending","shipped"],"note":"Đường đi khi mọi gate đều pass; DONE là trạng thái quá độ tự cascade sang FQC_PENDING."},{"id":"ipqc","label":"Nhánh IPQC / QA special-accept","focus":["ipqc-wait","qa-pending","ipqc-approved","prepress"],"note":"IPQC ký GO_RUN, SPECIAL_ACCEPT (chờ QA Manager) hoặc STOP_LINE quay về PREPRESS."},{"id":"rework","label":"Các đường quay về PREPRESS","focus":["setting","ipqc-wait","qa-pending","fqc-pending","prepress"],"note":"SETTING_ABORT (admin), IPQC_STOP_LINE, QA_REJECT_SPECIAL, FQC_REJECT."},{"id":"recovery","label":"Recovery-only (admin /force-phase)","focus":["new","cancelled","setting","prepress","oqc-pending","done"],"note":"13 ô forceable: SETTING→PREPRESS, mọi non-terminal→CANCELLED, DONE→CANCELLED, OQC_PENDING→DONE. Chỉ vẽ đại diện."}],"edges":[{"id":"t-scan","from":"new","to":"prepress"},{"id":"t-setting-start","from":"prepress","to":"setting"},{"id":"t-setting-done","from":"setting","to":"ipqc-wait"},{"id":"t-go-run","from":"ipqc-wait","to":"ipqc-approved"},{"id":"t-run-start","from":"ipqc-approved","to":"running"},{"id":"t-run-finish","from":"running","to":"done"},{"id":"t-cascade","from":"done","to":"fqc-pending"},{"id":"t-fqc-pass","from":"fqc-pending","to":"oqc-pending"},{"id":"t-oqc-pass","from":"oqc-pending","to":"shipped"},{"id":"t-special","from":"ipqc-wait","to":"qa-pending"},{"id":"t-qa-approve","from":"qa-pending","to":"ipqc-approved"},{"id":"t-qa-reject","from":"qa-pending","to":"prepress"},{"id":"t-stop-line","from":"ipqc-wait","to":"prepress"},{"id":"t-pause","from":"running","to":"paused"},{"id":"t-resume","from":"paused","to":"running"},{"id":"t-finish-paused","from":"paused","to":"done"},{"id":"t-fqc-reject","from":"fqc-pending","to":"prepress"},{"id":"t-oqc-reject","from":"oqc-pending","to":"fqc-pending"},{"id":"t-setting-abort","from":"setting","to":"prepress"},{"id":"t-oqc-done","from":"oqc-pending","to":"done"},{"id":"t-cancel","from":"new","to":"cancelled"}],"ui":{"search":"Tìm nút…","play":"Chạy mô phỏng","theme":"Giao diện","dark":"Tối","light":"Sáng","export":"Xuất","exportPng":"Tải PNG (2×)","copyPng":"Sao chép PNG","exportSvg":"Tải SVG","exportJson":"Tải nguồn JSON","help":"Hướng dẫn sơ đồ","focus":"Đang chọn","upstream":"Ngược dòng","downstream":"Xuôi dòng","views":"Góc nhìn…","legend":"Chú giải","zoom":"thu phóng","clear":"bỏ chọn","close":"Đóng","copied":"Đã sao chép PNG","guideTitle":"Hướng dẫn đọc sơ đồ","guideNote":"Mọi vùng sáng đều dựa trên nút và quan hệ do tác giả khai báo, không suy diễn thêm.","types":{"frontend":"Giao diện","backend":"Xử lý","database":"Cơ sở dữ liệu","cloud":"Dịch vụ đám mây","security":"Bảo mật / kiểm soát","messagebus":"Hàng đợi","external":"Bên ngoài","process":"Công đoạn","machine":"Máy / thiết bị","quality":"Kiểm tra chất lượng","storage":"Kho / lưu trữ","people":"Bộ phận / người","document":"Tài liệu / hồ sơ","start":"Bắt đầu","active":"Đang xử lý","waiting":"Chờ","success":"Hoàn tất","failure":"Thất bại","neutral":"Trung lập"},"edges":{"default":"Luồng","emphasis":"Luồng chính","security":"Kiểm soát / ngoại lệ","dashed":"Tùy chọn / bất đồng bộ"}},"guide":[["Nhấp vào một nút","Làm nổi bật nút đó và các quan hệ trực tiếp"],["Ngược dòng / Xuôi dòng","Lần theo toàn bộ chuỗi quan hệ đã khai báo"],["Góc nhìn","Các chương do tác giả biên soạn sẵn"],["/ rồi gõ","Tìm nút theo tên hoặc id"],["Kéo · cuộn · nhấp đúp","Di chuyển · thu phóng · đặt lại"],["T / E / P","Giao diện · xuất · chạy mô phỏng"],["#focus=id&reach=downstream","Liên kết sâu khôi phục đúng góc nhìn này"]],"source":{"schema_version":1,"diagram_type":"lifecycle","meta":{"title":"CCL-MES — Work Order State Machine (P10.7)","subtitle":"13 MesPhase · nguồn: CCL-MES-Hybrid/docs/P10.7-WO-STATE-CONTRACT.md §3.1–3.4 (7e-1 amendment)","locale":"vi","animation":"trace","views":[{"id":"happy","label":"Luồng chuẩn NEW → SHIPPED","focus":["new","prepress","setting","ipqc-wait","ipqc-approved","running","done","fqc-pending","oqc-pending","shipped"],"note":"Đường đi khi mọi gate đều pass; DONE là trạng thái quá độ tự cascade sang FQC_PENDING."},{"id":"ipqc","label":"Nhánh IPQC / QA special-accept","focus":["ipqc-wait","qa-pending","ipqc-approved","prepress"],"note":"IPQC ký GO_RUN, SPECIAL_ACCEPT (chờ QA Manager) hoặc STOP_LINE quay về PREPRESS."},{"id":"rework","label":"Các đường quay về PREPRESS","focus":["setting","ipqc-wait","qa-pending","fqc-pending","prepress"],"note":"SETTING_ABORT (admin), IPQC_STOP_LINE, QA_REJECT_SPECIAL, FQC_REJECT."},{"id":"recovery","label":"Recovery-only (admin /force-phase)","focus":["new","cancelled","setting","prepress","oqc-pending","done"],"note":"13 ô forceable: SETTING→PREPRESS, mọi non-terminal→CANCELLED, DONE→CANCELLED, OQC_PENDING→DONE. Chỉ vẽ đại diện."}]},"states":[{"id":"new","type":"start","label":"NEW","sublabel":"WO tạo từ IFS","col":0},{"id":"prepress","type":"active","label":"PREPRESS","sublabel":"vật tư · bản · dao","col":1},{"id":"setting","type":"active","label":"SETTING","sublabel":"canh máy · 4-eye","col":2},{"id":"ipqc-wait","type":"waiting","label":"IPQC_WAIT","sublabel":"chờ IPQC ký","col":3,"tag":"signoff"},{"id":"ipqc-approved","type":"active","label":"IPQC_APPROVED","sublabel":"được phép chạy","col":4},{"id":"running","type":"active","label":"RUNNING","sublabel":"run_session · qty","col":5},{"id":"done","type":"neutral","label":"DONE","sublabel":"quá độ · cascade","col":6},{"id":"fqc-pending","type":"waiting","label":"FQC_PENDING","sublabel":"chờ FQC ký","col":7,"tag":"signoff"},{"id":"oqc-pending","type":"waiting","label":"OQC_PENDING","sublabel":"3 chữ ký · RoHS","col":8,"tag":"signoff"},{"id":"shipped","type":"success","label":"SHIPPED","sublabel":"terminal","col":9},{"id":"cancelled","type":"failure","label":"CANCELLED","sublabel":"admin · terminal","col":0,"row":1},{"id":"qa-pending","type":"waiting","label":"QA_PENDING","sublabel":"QA Manager ký","col":3,"row":1,"tag":"signoff"},{"id":"paused","type":"waiting","label":"PAUSED","sublabel":"downtime reason","col":5,"row":1}],"transitions":[{"id":"t-scan","from":"new","to":"prepress","label":"SCAN_WO"},{"id":"t-setting-start","from":"prepress","to":"setting","label":"SETTING_START"},{"id":"t-setting-done","from":"setting","to":"ipqc-wait","label":"SETTING_DONE"},{"id":"t-go-run","from":"ipqc-wait","to":"ipqc-approved","label":"IPQC_GO_RUN"},{"id":"t-run-start","from":"ipqc-approved","to":"running","label":"RUN_START"},{"id":"t-run-finish","from":"running","to":"done","label":"RUN_FINISH"},{"id":"t-cascade","from":"done","to":"fqc-pending","label":"auto cascade"},{"id":"t-fqc-pass","from":"fqc-pending","to":"oqc-pending","label":"FQC_PASS"},{"id":"t-oqc-pass","from":"oqc-pending","to":"shipped","label":"OQC_PASS · 3-sig"},{"id":"t-special","from":"ipqc-wait","to":"qa-pending","label":"SPECIAL_ACCEPT"},{"id":"t-qa-approve","from":"qa-pending","to":"ipqc-approved","label":"QA_APPROVE"},{"id":"t-qa-reject","from":"qa-pending","to":"prepress","label":"QA_REJECT","variant":"security"},{"id":"t-stop-line","from":"ipqc-wait","to":"prepress","label":"IPQC_STOP_LINE","variant":"security","route":"below"},{"id":"t-pause","from":"running","to":"paused","label":"RUN_PAUSE"},{"id":"t-resume","from":"paused","to":"running","label":"RUN_RESUME"},{"id":"t-finish-paused","from":"paused","to":"done","label":"RUN_FINISH","variant":"dashed"},{"id":"t-fqc-reject","from":"fqc-pending","to":"prepress","label":"FQC_REJECT","variant":"security","route":"above"},{"id":"t-oqc-reject","from":"oqc-pending","to":"fqc-pending","label":"OQC_REJECT","variant":"security","route":"below"},{"id":"t-setting-abort","from":"setting","to":"prepress","label":"SETTING_ABORT · admin","variant":"dashed","route":"above"},{"id":"t-oqc-done","from":"oqc-pending","to":"done","label":"recovery · admin","variant":"dashed","route":"above"},{"id":"t-cancel","from":"new","to":"cancelled","label":"WO_CANCEL · admin","variant":"dashed"}],"cards":[{"dot":"cyan","title":"Loại ô trong lưới 13×13","items":["allowed — chỉ cần event (SCAN_WO, RUN_START, RUN_RESUME)","requires-condition — predicate domain (vật tư OK, setting item OK, ProducedQty > 0)","requires-signoff — 4-eye: IPQC / QA Manager / FQC / OQC (3 chữ ký)","recovery-only — admin /force-phase, emit SYS_RECOVERY; 13 ô forceable / 169"]},{"dot":"rose","title":"Cạnh vẽ đại diện","items":["Mọi trạng thái non-terminal → CANCELLED đều recovery-only; sơ đồ chỉ vẽ từ NEW","DONE → CANCELLED (7e-1) không vẽ để giữ sơ đồ đọc được","RUNNING → DONE trực tiếp bỏ QC: BLOCKED theo §3.3"]},{"dot":"amber","title":"Đồng bộ với code","items":["WorkOrderStateMachine.IsForceablePhase phải khớp 13 ô forceable","AuditAction phải có đủ 20 hằng số §3.2","Optimistic lock RowVersion + Idempotency-Key trên mọi advance (§6)"]}]}}</script>
+<script>
+(function(){
+  const data = JSON.parse(document.getElementById('diagram-data').textContent);
+  const UI = data.ui;
+  const root = document.documentElement;
+  const stage = document.getElementById('stage');
+  const inner = document.getElementById('stage-inner');
+  const svg = inner.querySelector('svg');
+  const toast = (msg) => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800); };
+
+  // ---- Theme ----
+  const themeBtn = document.getElementById('theme');
+  function setTheme(t, persist = true) {
+    root.classList.remove('theme-dark', 'theme-light'); root.classList.add('theme-' + t);
+    themeBtn.firstChild.textContent = (t === 'dark' ? UI.light : UI.dark);
+    if (persist) try { localStorage.setItem('diagrify-theme', t); } catch (e) {}
+  }
+  const q = new URLSearchParams(location.search);
+  let saved = null; try { saved = localStorage.getItem('diagrify-theme'); } catch (e) {}
+  setTheme(q.get('theme') || saved || data.theme, false);
+  themeBtn.addEventListener('click', () => setTheme(root.classList.contains('theme-dark') ? 'light' : 'dark'));
+
+  // ---- Pan / zoom ----
+  let scale = 1, tx = 0, ty = 0, drag = null;
+  const apply = () => { inner.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
+  const zoomBy = (f, cx, cy) => {
+    const r = stage.getBoundingClientRect();
+    cx = cx ?? r.width / 2; cy = cy ?? r.height / 2;
+    const ns = Math.min(4, Math.max(.3, scale * f));
+    tx = cx - (cx - tx) * (ns / scale); ty = cy - (cy - ty) * (ns / scale); scale = ns; apply();
+  };
+  const reset = () => { scale = 1; tx = 0; ty = 0; apply(); };
+  stage.addEventListener('wheel', (e) => { if (!e.ctrlKey && Math.abs(e.deltaY) < 4) return; e.preventDefault(); const r = stage.getBoundingClientRect(); zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  stage.addEventListener('pointerdown', (e) => { if (e.target.closest('.node')) return; drag = { x: e.clientX - tx, y: e.clientY - ty }; stage.classList.add('dragging'); stage.setPointerCapture(e.pointerId); });
+  stage.addEventListener('pointermove', (e) => { if (!drag) return; tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); });
+  stage.addEventListener('pointerup', () => { drag = null; stage.classList.remove('dragging'); });
+  stage.addEventListener('dblclick', (e) => { if (!e.target.closest('.node')) reset(); });
+
+  // ---- Focus / reach ----
+  const nodes = [...svg.querySelectorAll('.node:not(.mirror)')];
+  const edges = [...svg.querySelectorAll('.edge')];
+  const out = new Map(), inn = new Map();
+  for (const e of data.edges) { (out.get(e.from) || out.set(e.from, []).get(e.from)).push(e); (inn.get(e.to) || inn.set(e.to, []).get(e.to)).push(e); }
+  const focusbar = document.getElementById('focusbar');
+  let focused = null;
+  function highlight(nodeIds, edgeIds) {
+    svg.classList.add('has-focus');
+    for (const n of nodes) n.classList.toggle('dim', !nodeIds.has(n.dataset.id)), n.classList.toggle('hot', nodeIds.has(n.dataset.id));
+    for (const e of edges) e.classList.toggle('dim', !edgeIds.has(e.dataset.id)), e.classList.toggle('hot', edgeIds.has(e.dataset.id));
+  }
+  function clearFocus() {
+    focused = null; svg.classList.remove('has-focus');
+    for (const el of [...nodes, ...edges]) el.classList.remove('dim', 'hot');
+    focusbar.hidden = true; document.getElementById('views').value = '';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  }
+  function focusNode(id, reach) {
+    const node = nodes.find((n) => n.dataset.id === id); if (!node) return;
+    focused = id;
+    const nodeIds = new Set([id]); const edgeIds = new Set();
+    if (!reach) {
+      for (const e of out.get(id) || []) { nodeIds.add(e.to); edgeIds.add(e.id); }
+      for (const e of inn.get(id) || []) { nodeIds.add(e.from); edgeIds.add(e.id); }
+    } else {
+      const map = reach === 'downstream' ? out : inn; const stack = [id];
+      while (stack.length) { const cur = stack.pop(); for (const e of map.get(cur) || []) { const next = reach === 'downstream' ? e.to : e.from; edgeIds.add(e.id); if (!nodeIds.has(next)) { nodeIds.add(next); stack.push(next); } } }
+    }
+    highlight(nodeIds, edgeIds);
+    focusbar.hidden = false; document.getElementById('focus-name').textContent = node.getAttribute('aria-label').split(' — ')[0] + (reach ? ' · ' + UI[reach] : '');
+    history.replaceState(null, '', '#focus=' + encodeURIComponent(id) + (reach ? '&reach=' + reach : ''));
+  }
+  for (const n of nodes) {
+    n.addEventListener('click', (e) => { e.stopPropagation(); focused === n.dataset.id ? clearFocus() : focusNode(n.dataset.id); });
+    n.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusNode(n.dataset.id); } });
+  }
+  focusbar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.dataset.reach === 'clear' ? clearFocus() : focusNode(focused, b.dataset.reach); });
+
+  // ---- Views ----
+  const viewsSel = document.getElementById('views');
+  if (data.views && data.views.length) {
+    viewsSel.hidden = false;
+    viewsSel.innerHTML = '<option value="">' + UI.views + '</option>' + data.views.map((v) => `<option value="${v.id}">${v.label}</option>`).join('');
+    viewsSel.addEventListener('change', () => {
+      const v = data.views.find((x) => x.id === viewsSel.value); if (!v) return clearFocus();
+      const ids = new Set(v.focus); const eids = new Set(data.edges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => e.id));
+      highlight(ids, eids); focused = null; focusbar.hidden = false; document.getElementById('focus-name').textContent = v.label + (v.note ? ' — ' + v.note : '');
+      history.replaceState(null, '', '#view=' + v.id);
+    });
+  }
+
+  // ---- Search ----
+  const search = document.getElementById('search');
+  search.addEventListener('input', () => {
+    const qv = search.value.trim().toLowerCase(); if (!qv) return clearFocus();
+    const hit = nodes.find((n) => n.getAttribute('aria-label').toLowerCase().includes(qv) || n.dataset.id.includes(qv));
+    if (hit) focusNode(hit.dataset.id);
+  });
+
+  // ---- Motion ----
+  const playBtn = document.getElementById('play');
+  edges.forEach((e, i) => e.style.setProperty('--i', i));
+  if (data.animation === 'trace') {
+    playBtn.hidden = false;
+    playBtn.addEventListener('click', play);
+    if (q.get('play') === '1') play();
+  }
+  function play() { svg.classList.remove('play'); void svg.getBoundingClientRect(); svg.classList.add('play'); setTimeout(() => svg.classList.remove('play'), 1200 + edges.length * 220 + 400); }
+
+  // ---- Export ----
+  const menu = document.getElementById('export-menu');
+  document.getElementById('export').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  document.addEventListener('click', () => { menu.hidden = true; });
+  menu.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-export]'); if (!b) return;
+    const kind = b.dataset.export; menu.hidden = true;
+    const name = data.slug;
+    if (kind === 'json') return download(name + '.json', new Blob([JSON.stringify(data.source, null, 2)], { type: 'application/json' }));
+    const svgText = exportSvg();
+    if (kind === 'svg') return download(name + '.svg', new Blob([svgText], { type: 'image/svg+xml' }));
+    const blob = await toPng(svgText);
+    if (kind === 'png') return download(name + '.png', blob);
+    try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast(UI.copied); } catch (err) { download(name + '.png', blob); }
+  });
+  function exportSvg() {
+    const clone = svg.cloneNode(true);
+    clone.classList.remove('has-focus', 'play');
+    clone.querySelectorAll('.dim,.hot').forEach((el) => el.classList.remove('dim', 'hot'));
+    clone.querySelectorAll('[style]').forEach((el) => { if (el.classList.contains('edge-line')) el.removeAttribute('style'); });
+    const theme = root.classList.contains('theme-dark') ? 'theme-dark' : 'theme-light';
+    clone.setAttribute('class', 'diagram ' + theme);
+    const css = document.getElementById('diagram-css').textContent.replace(/\.theme-(dark|light)\{/g, 'svg.theme-$1{');
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style'); style.textContent = css;
+    clone.insertBefore(style, clone.firstChild);
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+  }
+  function toPng(svgText) {
+    return new Promise((resolve, reject) => {
+      const img = new Image(); const url = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml' }));
+      img.onload = () => {
+        const s = 2; const c = document.createElement('canvas'); c.width = svg.viewBox.baseVal.width * s; c.height = svg.viewBox.baseVal.height * s;
+        const ctx = c.getContext('2d'); ctx.fillStyle = getComputedStyle(root).getPropertyValue('--panel').trim(); ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); c.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG export failed'))), 'image/png');
+      };
+      img.onerror = reject; img.src = url;
+    });
+  }
+  function download(filename, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+
+  // ---- Help ----
+  const modal = document.getElementById('modal');
+  const guide = document.getElementById('guide');
+  guide.innerHTML = data.guide.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  document.getElementById('help').addEventListener('click', () => { modal.hidden = false; });
+  document.getElementById('modal-close').addEventListener('click', () => { modal.hidden = true; });
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+  // ---- Keyboard ----
+  document.addEventListener('keydown', (e) => {
+    if (e.target === search) { if (e.key === 'Escape') { search.value = ''; search.blur(); clearFocus(); } return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case 't': case 'T': themeBtn.click(); break;
+      case 'e': case 'E': document.getElementById('export').click(); break;
+      case '/': e.preventDefault(); search.focus(); break;
+      case '?': modal.hidden = !modal.hidden; break;
+      case 'p': case 'P': if (!playBtn.hidden) play(); break;
+      case '+': case '=': zoomBy(1.2); break;
+      case '-': zoomBy(1 / 1.2); break;
+      case '0': reset(); break;
+      case 'Escape': modal.hidden = true; menu.hidden = true; clearFocus(); break;
+      default: return;
+    }
+  });
+
+  // ---- Deep links ----
+  function applyHash() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('focus')) focusNode(h.get('focus'), h.get('reach') || undefined);
+    else if (h.get('view') && data.views) { viewsSel.value = h.get('view'); viewsSel.dispatchEvent(new Event('change')); }
+  }
+  applyHash();
+  window.addEventListener('hashchange', applyHash);
+})();
+</script>
+</body>
+</html>

@@ -111,7 +111,7 @@ public sealed class QcSpecController : ControllerBase
     ///   Unknown <see cref="QcStage"/> → 422 <c>qc.invalid_stage</c>
     /// </summary>
     [HttpPost("windows/upsert-stage/{revisionId:long}")]
-    [Authorize]
+    [Authorize(Policy = "QcPlanWrite")]
     public async Task<IActionResult> UpsertStage(
         long revisionId,
         [FromBody] QcPlanUpsertRequest req,
@@ -222,7 +222,7 @@ public sealed class QcSpecController : ControllerBase
     ///   InvalidOperationException → 422 <c>qc.validation</c>
     /// </summary>
     [HttpPost("captures/{revisionId:long}")]
-    [Authorize]
+    [Authorize(Policy = "QcPlanWrite")]
     public async Task<IActionResult> CreateCapture(
         long revisionId,
         [FromBody] QcCaptureCreateRequest req,

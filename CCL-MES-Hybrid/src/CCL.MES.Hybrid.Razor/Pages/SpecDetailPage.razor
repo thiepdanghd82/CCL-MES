@@ -40,7 +40,7 @@
            is in-flight via the page-level _busy guard. *@
         @if (_vm is not null)
         {
-            <AuthorizeView Roles="Admin,Engineer">
+            <AuthorizeView Roles="Admin,EngineerProduction,Engineer">
                 <div class="spec-detail-actions spec-detail-actions-inline">
                     @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
                     {

@@ -91,18 +91,37 @@ public static class DrawingsApprovalGateVm
         var dept = (actorDepartment ?? "").Trim().ToLowerInvariant();
         return chip switch
         {
+            // A4 (2026-09-14) — hoà HAI mô hình. Cổng này vốn phân ngạch kỹ sư
+            // bằng Role="Engineer" + Department (npi · production · qc). A4
+            // thêm hai VAI tường minh vì policy `RequireRole` không đọc được
+            // Department — tầng policy mới là cổng thật (skill cmes-rbac-matrix).
+            //
+            // Giữ cả hai đường: vai mới tự thoả ngạch của nó; vai "Engineer" cũ
+            // vẫn đi bằng Department như trước. Bỏ đường cũ là mọi tài khoản
+            // Engineer đang có mất quyền duyệt bản vẽ trong im lặng.
+            //
+            // Ngạch NPI KHÔNG có vai riêng — nó vẫn đi bằng Department, vì
+            // NPI là bộ phận thứ ba mà A4 không đụng tới.
             DrawingApprovalRole.Npi =>
-                string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase)
-                && dept == "npi",
+                IsEngineerish(actorRole) && dept == "npi",
             DrawingApprovalRole.Production =>
-                (string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase) && dept == "production")
+                (IsEngineerish(actorRole) && dept == "production")
+                || string.Equals(actorRole, "EngineerProduction", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(actorRole, "Supervisor", StringComparison.OrdinalIgnoreCase),
             DrawingApprovalRole.Qc =>
-                string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase)
-                && dept == "qc",
+                (IsEngineerish(actorRole) && dept == "qc")
+                || string.Equals(actorRole, "EngineerQuality", StringComparison.OrdinalIgnoreCase),
             _ => false,
         };
     }
+
+    /// <summary>Vai nào tính là "kỹ sư" cho cổng duyệt bản vẽ: vai gộp cũ hoặc
+    /// một trong hai ngạch mới. Ngạch cụ thể vẫn do Department quyết.</summary>
+    private static bool IsEngineerish(string? role) =>
+        string.Equals(role, "Engineer", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, "EngineerProduction", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, "EngineerQuality", StringComparison.OrdinalIgnoreCase);
+
 
     /// <summary>VN tooltip for a NotAuthorized chip — explains WHY the
     /// chip is disabled so the operator can route to the right

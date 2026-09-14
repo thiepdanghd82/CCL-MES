@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "CCL-MES — Work Order State Machine (P10.7)",
+    "subtitle": "13 MesPhase · nguồn: CCL-MES-Hybrid/docs/P10.7-WO-STATE-CONTRACT.md §3.1–3.4 (7e-1 amendment)",
+    "locale": "vi",
+    "animation": "trace",
+    "views": [
+      {"id": "happy", "label": "Luồng chuẩn NEW → SHIPPED", "focus": ["new", "prepress", "setting", "ipqc-wait", "ipqc-approved", "running", "done", "fqc-pending", "oqc-pending", "shipped"], "note": "Đường đi khi mọi gate đều pass; DONE là trạng thái quá độ tự cascade sang FQC_PENDING."},
+      {"id": "ipqc", "label": "Nhánh IPQC / QA special-accept", "focus": ["ipqc-wait", "qa-pending", "ipqc-approved", "prepress"], "note": "IPQC ký GO_RUN, SPECIAL_ACCEPT (chờ QA Manager) hoặc STOP_LINE quay về PREPRESS."},
+      {"id": "rework", "label": "Các đường quay về PREPRESS", "focus": ["setting", "ipqc-wait", "qa-pending", "fqc-pending", "prepress"], "note": "SETTING_ABORT (admin), IPQC_STOP_LINE, QA_REJECT_SPECIAL, FQC_REJECT."},
+      {"id": "recovery", "label": "Recovery-only (admin /force-phase)", "focus": ["new", "cancelled", "setting", "prepress", "oqc-pending", "done"], "note": "13 ô forceable: SETTING→PREPRESS, mọi non-terminal→CANCELLED, DONE→CANCELLED, OQC_PENDING→DONE. Chỉ vẽ đại diện."}
+    ]
+  },
+  "states": [
+    {"id": "new", "type": "start", "label": "NEW", "sublabel": "WO tạo từ IFS", "col": 0},
+    {"id": "prepress", "type": "active", "label": "PREPRESS", "sublabel": "vật tư · bản · dao", "col": 1},
+    {"id": "setting", "type": "active", "label": "SETTING", "sublabel": "canh máy · 4-eye", "col": 2},
+    {"id": "ipqc-wait", "type": "waiting", "label": "IPQC_WAIT", "sublabel": "chờ IPQC ký", "col": 3, "tag": "signoff"},
+    {"id": "ipqc-approved", "type": "active", "label": "IPQC_APPROVED", "sublabel": "được phép chạy", "col": 4},
+    {"id": "running", "type": "active", "label": "RUNNING", "sublabel": "run_session · qty", "col": 5},
+    {"id": "done", "type": "neutral", "label": "DONE", "sublabel": "quá độ · cascade", "col": 6},
+    {"id": "fqc-pending", "type": "waiting", "label": "FQC_PENDING", "sublabel": "chờ FQC ký", "col": 7, "tag": "signoff"},
+    {"id": "oqc-pending", "type": "waiting", "label": "OQC_PENDING", "sublabel": "3 chữ ký · RoHS", "col": 8, "tag": "signoff"},
+    {"id": "shipped", "type": "success", "label": "SHIPPED", "sublabel": "terminal", "col": 9},
+    {"id": "cancelled", "type": "failure", "label": "CANCELLED", "sublabel": "admin · terminal", "col": 0, "row": 1},
+    {"id": "qa-pending", "type": "waiting", "label": "QA_PENDING", "sublabel": "QA Manager ký", "col": 3, "row": 1, "tag": "signoff"},
+    {"id": "paused", "type": "waiting", "label": "PAUSED", "sublabel": "downtime reason", "col": 5, "row": 1}
+  ],
+  "transitions": [
+    {"id": "t-scan", "from": "new", "to": "prepress", "label": "SCAN_WO"},
+    {"id": "t-setting-start", "from": "prepress", "to": "setting", "label": "SETTING_START"},
+    {"id": "t-setting-done", "from": "setting", "to": "ipqc-wait", "label": "SETTING_DONE"},
+    {"id": "t-go-run", "from": "ipqc-wait", "to": "ipqc-approved", "label": "IPQC_GO_RUN"},
+    {"id": "t-run-start", "from": "ipqc-approved", "to": "running", "label": "RUN_START"},
+    {"id": "t-run-finish", "from": "running", "to": "done", "label": "RUN_FINISH"},
+    {"id": "t-cascade", "from": "done", "to": "fqc-pending", "label": "auto cascade"},
+    {"id": "t-fqc-pass", "from": "fqc-pending", "to": "oqc-pending", "label": "FQC_PASS"},
+    {"id": "t-oqc-pass", "from": "oqc-pending", "to": "shipped", "label": "OQC_PASS · 3-sig"},
+    {"id": "t-special", "from": "ipqc-wait", "to": "qa-pending", "label": "SPECIAL_ACCEPT"},
+    {"id": "t-qa-approve", "from": "qa-pending", "to": "ipqc-approved", "label": "QA_APPROVE"},
+    {"id": "t-qa-reject", "from": "qa-pending", "to": "prepress", "label": "QA_REJECT", "variant": "security"},
+    {"id": "t-stop-line", "from": "ipqc-wait", "to": "prepress", "label": "IPQC_STOP_LINE", "variant": "security", "route": "below"},
+    {"id": "t-pause", "from": "running", "to": "paused", "label": "RUN_PAUSE"},
+    {"id": "t-resume", "from": "paused", "to": "running", "label": "RUN_RESUME"},
+    {"id": "t-finish-paused", "from": "paused", "to": "done", "label": "RUN_FINISH", "variant": "dashed"},
+    {"id": "t-fqc-reject", "from": "fqc-pending", "to": "prepress", "label": "FQC_REJECT", "variant": "security", "route": "above"},
+    {"id": "t-oqc-reject", "from": "oqc-pending", "to": "fqc-pending", "label": "OQC_REJECT", "variant": "security", "route": "below"},
+    {"id": "t-setting-abort", "from": "setting", "to": "prepress", "label": "SETTING_ABORT · admin", "variant": "dashed", "route": "above"},
+    {"id": "t-oqc-done", "from": "oqc-pending", "to": "done", "label": "recovery · admin", "variant": "dashed", "route": "above"},
+    {"id": "t-cancel", "from": "new", "to": "cancelled", "label": "WO_CANCEL · admin", "variant": "dashed"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Loại ô trong lưới 13×13", "items": ["allowed — chỉ cần event (SCAN_WO, RUN_START, RUN_RESUME)", "requires-condition — predicate domain (vật tư OK, setting item OK, ProducedQty > 0)", "requires-signoff — 4-eye: IPQC / QA Manager / FQC / OQC (3 chữ ký)", "recovery-only — admin /force-phase, emit SYS_RECOVERY; 13 ô forceable / 169"]},
+    {"dot": "rose", "title": "Cạnh vẽ đại diện", "items": ["Mọi trạng thái non-terminal → CANCELLED đều recovery-only; sơ đồ chỉ vẽ từ NEW", "DONE → CANCELLED (7e-1) không vẽ để giữ sơ đồ đọc được", "RUNNING → DONE trực tiếp bỏ QC: BLOCKED theo §3.3"]},
+    {"dot": "amber", "title": "Đồng bộ với code", "items": ["WorkOrderStateMachine.IsForceablePhase phải khớp 13 ô forceable", "AuditAction phải có đủ 20 hằng số §3.2", "Optimistic lock RowVersion + Idempotency-Key trên mọi advance (§6)"]}
+  ]
+}

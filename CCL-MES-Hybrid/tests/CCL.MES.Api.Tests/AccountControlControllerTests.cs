@@ -184,11 +184,11 @@ public sealed class AccountControlControllerTests : IClassFixture<MesApiFactory>
         var target = await _fx.SeedUserAsync("target-1", "P@ss!1", UserRole.Operator);
 
         var resp = await client.PatchAsJsonAsync($"/api/v2/admin/users/{target.Id}",
-            new UpdateAccountRequest { DisplayName = "New Display", Role = UserRole.Engineer });
+            new UpdateAccountRequest { DisplayName = "New Display", Role = UserRole.EngineerProduction });
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var dto = (await resp.Content.ReadFromJsonAsync<AccountDto>())!;
         Assert.Equal("New Display", dto.DisplayName);
-        Assert.Equal(UserRole.Engineer, dto.Role);
+        Assert.Equal(UserRole.EngineerProduction, dto.Role);
     }
 
     [Fact]

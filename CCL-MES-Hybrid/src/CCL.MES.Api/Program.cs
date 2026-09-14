@@ -333,18 +333,22 @@ builder.Services.AddAuthorization(o =>
 
     o.AddPolicy("NpiRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer, UserRole.Qc));
 
     o.AddPolicy("NpiSpecRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+        // A4 — ĐỌC spec: cả hai ngạch — kỹ sư chất lượng phải đọc được spec sản xuất thì 
+        //      mới soạn nổi tiêu chí nghiệm thu cho nó.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer));
 
     // P10.5c-1 — Spec mutation gate. Mirrors the legacy
     // SpecsController inline `[Authorize(Roles = "Admin,Engineer")]` —
     // Supervisor / QC can READ specs but never WRITE per Phase 8 Q9.
     o.AddPolicy("NpiSpecWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Engineer));
+        // A4 — GHI spec/bản vẽ công đoạn = định nghĩa CÁCH LÀM RA sản phẩm ⇒ kỹ sư SẢN XU
+        //      ẤT. Kỹ sư chất lượng đọc được nhưng không sửa.
+        .RequireRole(UserRole.Admin, UserRole.EngineerProduction, UserRole.Engineer));
 
     o.AddPolicy("QcRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
@@ -357,7 +361,9 @@ builder.Services.AddAuthorization(o =>
     // expansion if NPI workflow demands it.)
     o.AddPolicy("IpqcSubmit", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Qc));
+        // A4 — Thiệp chốt: luồng IQC · IPQC · OQC · FQC do kỹ sư CHẤT LƯỢNG xác nhận, cùn
+        //      g QC đứng chuyền.
+        .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.EngineerQuality));
 
     // P10.7d-2 — QA approve gate (Q3 dual-sig CRITICAL). Per SpecHub
     // §3 QC column "Approve special-accept" + practical print-industry
@@ -385,15 +391,20 @@ builder.Services.AddAuthorization(o =>
     // confirm itself is IpqcSubmit=Admin|Qc; waiving it is a distinct authority).
     o.AddPolicy("EngineerWaive", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Engineer, UserRole.Supervisor));
+        // A4 — Thiệp chốt: ký waiver vật tư lệch thì CẢ HAI ngạch ký được, miễn KHÁC ngườ
+        //      i đã xác nhận dòng. Luật 4-mắt nằm ở Domain policy, không phải ở đây. PHẢI
+        //       khớp IpqcSignaturePolicy.WaiverSignerRoleAllowed — có test khoá.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer));
 
     // P10.7g (QD) — SETTING check set-item gate. Operator đứng máy đánh
     // OK/NG makeready → phải bao gồm Operator; QC/Supervisor/Engineer/Admin
     // cũng được. Guard rollup + phase server phía controller.
     o.AddPolicy("SettingItemSet", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        // A4 — đánh OK/NG makeready là việc SẢN XUẤT: Operator đứng máy +
+        //      QC. Kỹ sư chất lượng không tham gia bước này.
         .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor,
-            UserRole.Engineer, UserRole.Operator));
+            UserRole.EngineerProduction, UserRole.Engineer, UserRole.Operator));
 
     // P10.7g (QD) — SETTING add-item (F4) + QC-add-new defect per-product.
     // Ghi MASTER (thư viện per-product) chỉ dành Engineer+ (Admin/Supervisor/
@@ -401,20 +412,33 @@ builder.Services.AddAuthorization(o =>
     // /setting-checks/item (server tự hạ xuống ad-hoc theo role, không 403).
     o.AddPolicy("SettingItemAdd", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+        // A4 — Hạng mục cài đặt máy là master data SẢN XUẤT.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.Engineer));
 
     // P12 bước 2b — soạn tiêu chuẩn kiểm NVL theo mã.
     //   ĐỌC : QC cần xem tiêu chuẩn của mã đang kiểm ⇒ mở cho cả QC.
     //   GHI : master data ⇒ Engineer+ (cùng luật SettingItemAdd). QC kiểm được
     //         nhưng KHÔNG soạn tiêu chuẩn — nếu không thì người kiểm tự hạ
     //         chuẩn cho lô mình đang cầm.
+    // A4 (2026-09-14) — GHI kế hoạch QC (SpecQcWindow · QcCriterion · capture).
+    // TRƯỚC A4 hai endpoint này chỉ có [Authorize] trần ⇒ AI ĐĂNG NHẬP CŨNG GHI
+    // ĐƯỢC, kể cả Operator — vi phạm luật vàng #1 của skill cmes-rbac-matrix.
+    // Đây là tiêu chí nghiệm thu sau đó lái ngưỡng IPQC xuống hồ sơ WO, nên
+    // thuộc kỹ sư CHẤT LƯỢNG.
+    o.AddPolicy("QcPlanWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor,
+            UserRole.EngineerQuality, UserRole.Engineer));
+
     o.AddPolicy("IqcSpecRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+        // A4 — ĐỌC: cả hai ngạch.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer, UserRole.Qc));
 
     o.AddPolicy("IqcSpecWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+        // A4 — Tiêu chuẩn IQC là tiêu chí nghiệm thu vật tư đầu vào ⇒ kỹ sư CHẤT LƯỢNG.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerQuality, UserRole.Engineer));
 
     // P12 bước 4 — hồ sơ HSF theo mã nguyên liệu.
     //   ĐỌC : ai xem được phiếu thì xem được hồ sơ đính kèm.
@@ -422,11 +446,13 @@ builder.Services.AddAuthorization(o =>
     //         NCC, phải đưa lên được ngay lúc nhận. Operator KHÔNG.
     o.AddPolicy("IqcDocRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+        // A4 — ĐỌC: cả hai ngạch.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer, UserRole.Qc));
 
     o.AddPolicy("IqcDocWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+        // A4 — Hồ sơ IQC thuộc luồng chất lượng.
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.EngineerQuality, UserRole.Engineer, UserRole.Qc));
 });
 
 // ──────────────────────────────────────────────────────────────────────

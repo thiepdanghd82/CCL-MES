@@ -1,3 +1,5 @@
+using CCL.MES.Domain.Auth;
+
 namespace CCL.MES.Api.Policies;
 
 /// <summary>
@@ -72,10 +74,16 @@ public static class IpqcSignaturePolicy
     ///
     /// <para>Cùng tập vai với policy <c>IpqcSubmit</c> (§5.5.0): Admin · QC.</para>
     /// </summary>
+    /// <summary>Vai được PHÁN ĐỊNH IPQC. PHẢI khớp policy <c>IpqcSubmit</c>.</summary>
+    public static readonly IReadOnlyList<string> JudgmentSignerRoles = new[]
+    {
+        UserRole.Admin, UserRole.Qc, UserRole.EngineerQuality,
+        UserRole.Engineer,   // bí danh cũ
+    };
+
     public static bool SignerRoleAllowed(string? signerRole) =>
         !string.IsNullOrWhiteSpace(signerRole)
-        && (signerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase)
-            || signerRole.Equals("QC", StringComparison.OrdinalIgnoreCase));
+        && JudgmentSignerRoles.Any(r => r.Equals(signerRole, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Vai của NGƯỜI KÝ waiver vật tư (Thiệp chốt 2026-09-14).
@@ -88,9 +96,17 @@ public static class IpqcSignaturePolicy
     /// <para>Giữ hai hàm tách rời thay vì một hàm có cờ: trộn lại thì một ngày
     /// nào đó QC ký được waiver kỹ thuật mà không ai nhận ra.</para>
     /// </summary>
+    /// <summary>Vai được ký waiver. PHẢI khớp policy <c>EngineerWaive</c> trong
+    /// <c>Program.cs</c> — hai danh sách ở hai nơi là đúng bệnh L83, nên có test
+    /// khoá chúng không lệch nhau.</summary>
+    public static readonly IReadOnlyList<string> WaiverSignerRoles = new[]
+    {
+        UserRole.Admin, UserRole.Supervisor,
+        UserRole.EngineerProduction, UserRole.EngineerQuality,
+        UserRole.Engineer,   // bí danh cũ — đọc được, không cấp mới
+    };
+
     public static bool WaiverSignerRoleAllowed(string? signerRole) =>
         !string.IsNullOrWhiteSpace(signerRole)
-        && (signerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase)
-            || signerRole.Equals("Engineer", StringComparison.OrdinalIgnoreCase)
-            || signerRole.Equals("Supervisor", StringComparison.OrdinalIgnoreCase));
+        && WaiverSignerRoles.Any(r => r.Equals(signerRole, StringComparison.OrdinalIgnoreCase));
 }

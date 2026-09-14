@@ -48,7 +48,7 @@ public sealed class WindowRegistryTests
     public void QcLibrary_roles_mirror_the_page_authorize_list()
     {
         Assert.Equal(
-            new[] { "Admin", "Supervisor", "Engineer", "QC" },
+            new[] { "Admin", "Supervisor", "EngineerProduction", "EngineerQuality", "Engineer", "QC" },
             WindowRegistryKeys.QcLibraryRoles);
     }
 }

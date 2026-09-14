@@ -1,3 +1,4 @@
+using CCL.MES.Domain.Auth;
 using System.Text.Json;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Storage;
@@ -33,6 +34,7 @@ public class DrawingsService
     private static readonly HashSet<string> _editorRoles = new(StringComparer.OrdinalIgnoreCase)
     {
         "Admin",
+        "EngineerProduction",
         "Engineer",
     };
 
@@ -355,18 +357,37 @@ public class DrawingsService
         var dept = (actorDepartment ?? "").Trim().ToLowerInvariant();
         return chip switch
         {
+            // A4 (2026-09-14) — hoà HAI mô hình. Cổng này vốn phân ngạch kỹ sư
+            // bằng Role="Engineer" + Department (npi · production · qc). A4
+            // thêm hai VAI tường minh vì policy `RequireRole` không đọc được
+            // Department — tầng policy mới là cổng thật (skill cmes-rbac-matrix).
+            //
+            // Giữ cả hai đường: vai mới tự thoả ngạch của nó; vai "Engineer" cũ
+            // vẫn đi bằng Department như trước. Bỏ đường cũ là mọi tài khoản
+            // Engineer đang có mất quyền duyệt bản vẽ trong im lặng.
+            //
+            // Ngạch NPI KHÔNG có vai riêng — nó vẫn đi bằng Department, vì
+            // NPI là bộ phận thứ ba mà A4 không đụng tới.
             DrawingApprovalRole.Npi =>
-                string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase)
-                && dept == "npi",
+                IsEngineerish(actorRole) && dept == "npi",
             DrawingApprovalRole.Production =>
-                (string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase) && dept == "production")
-                || string.Equals(actorRole, "Supervisor", StringComparison.OrdinalIgnoreCase),
+                (IsEngineerish(actorRole) && dept == "production")
+                || string.Equals(actorRole, UserRole.EngineerProduction, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(actorRole, UserRole.Supervisor, StringComparison.OrdinalIgnoreCase),
             DrawingApprovalRole.Qc =>
-                string.Equals(actorRole, "Engineer", StringComparison.OrdinalIgnoreCase)
-                && dept == "qc",
+                (IsEngineerish(actorRole) && dept == "qc")
+                || string.Equals(actorRole, UserRole.EngineerQuality, StringComparison.OrdinalIgnoreCase),
             _ => false,
         };
     }
+
+    /// <summary>Vai nào tính là "kỹ sư" cho cổng duyệt bản vẽ: vai gộp cũ hoặc
+    /// một trong hai ngạch mới. Ngạch cụ thể vẫn do Department quyết.</summary>
+    private static bool IsEngineerish(string? role) =>
+        string.Equals(role, UserRole.Engineer, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, UserRole.EngineerProduction, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, UserRole.EngineerQuality, StringComparison.OrdinalIgnoreCase);
+
 
     /// <summary>
     /// Atomic decide. Find the approval row (versionId, role), validate
