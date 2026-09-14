@@ -110,6 +110,50 @@ Domain/Application sau cutover A1.
 
 ---
 
+## A4 — Tách vai Engineer làm hai: kỹ sư SẢN XUẤT và kỹ sư CHẤT LƯỢNG
+
+**Thiệp chốt 2026-09-14.** Xưởng có hai ngạch kỹ sư khác nhau, và luồng khác nhau:
+
+| Luồng | Ai xác nhận |
+|---|---|
+| Sản xuất (SETTING · RUNNING · prepress) | **kỹ sư sản xuất** |
+| IQC · IPQC · OQC · FQC | **kỹ sư chất lượng** |
+
+Ký duyệt waiver vật tư lệch: **cả hai vai đều ký được**, miễn KHÁC người đã
+xác nhận dòng (luật 4-mắt giữ nguyên).
+
+**Vấn đề.** Hôm nay chỉ có MỘT vai `Engineer` gánh cả hai ngạch. Đo 14-09:
+44 chỗ nhắc tới vai này, trải 18 file, 15 policy, 10 `AuthorizeView`. Hệ quả
+cụ thể: trong luồng IPQC kỹ sư chất lượng vừa xác nhận dòng vật tư vừa ký
+waiver được ⇒ luật 4-mắt chặn mỗi ngày, và lối thoát rẻ nhất là tắt cờ
+`OPS_IPQC_REQUIRE_DISTINCT_MATERIAL_WAIVER` — mất luôn 4-mắt thật.
+
+`Users.Role` là **TEXT** nên thêm vai KHÔNG cần migration.
+
+**Work-class** W6 · **Agent** `cmes-implementer` · **Skill** `cmes-rbac-matrix` (+ `cmes-audit-emit`)
+
+**Nghiệm thu**
+- [ ] `UserRole` có `EngineerProduction` + `EngineerQuality`; `Engineer` cũ giữ
+      lại làm bí danh đọc-được cho dữ liệu cũ, KHÔNG cấp mới
+- [ ] `IpqcSubmit` (xác nhận dòng vật tư · chấm hạng mục IPQC) = Admin · QC · **EngineerQuality**
+- [ ] `EngineerWaive` (ký waiver) = Admin · Supervisor · **EngineerProduction** · **EngineerQuality**
+- [ ] `IpqcSignaturePolicy.WaiverSignerRoleAllowed` khớp `EngineerWaive` — có
+      gate hoặc test khoá hai danh sách này không lệch nhau (cùng bệnh với L83)
+- [ ] Người dùng `Engineer` đang tồn tại được gán lại vai tường minh, không
+      để hệ tự đoán
+- [ ] 10 `AuthorizeView` rà lại từng cái: cái nào là việc SẢN XUẤT, cái nào là
+      việc CHẤT LƯỢNG — không thay máy móc `Engineer` → cả hai vai
+- [ ] Test 4-mắt hiện có vẫn xanh, và thêm ca "kỹ sư chất lượng xác nhận rồi
+      kỹ sư sản xuất ký" = ĐƯỢC
+
+**Bẫy đã biết.** Đây là RBAC nên mọi thay đổi mặc định vai là STOP-gate
+(`cmes-secrets-jwt`). Và đừng thay `Engineer` → `EngineerProduction,EngineerQuality`
+bằng find/replace: một nửa số chỗ ấy là quyền ĐỌC spec (cả hai vai nên có),
+nửa còn lại là quyền KÝ (phải phân biệt). Thay mù là cấp quyền ký cho người
+không nên có.
+
+---
+
 ## A3 — Observability
 
 **Vấn đề.** `grep` toàn bộ `.csproj`: **không** OpenTelemetry, **không** Serilog,
