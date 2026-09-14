@@ -62,4 +62,21 @@ public static class IpqcSignaturePolicy
         !string.IsNullOrWhiteSpace(signerRole)
         && (signerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase)
             || signerRole.Equals("QC", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Vai của NGƯỜI KÝ waiver vật tư (Thiệp chốt 2026-09-14).
+    ///
+    /// <para>Tập vai khác với phán định IPQC, và khác là ĐÚNG: phán định là việc
+    /// của QC trên chuyền; còn ký duyệt một lô vật tư lệch dữ liệu IQC là quyết
+    /// định KỸ THUẬT — ai chịu trách nhiệm nếu lô ấy hỏng hàng. Cùng tập vai với
+    /// policy <c>EngineerWaive</c>: Admin · Engineer · Supervisor.</para>
+    ///
+    /// <para>Giữ hai hàm tách rời thay vì một hàm có cờ: trộn lại thì một ngày
+    /// nào đó QC ký được waiver kỹ thuật mà không ai nhận ra.</para>
+    /// </summary>
+    public static bool WaiverSignerRoleAllowed(string? signerRole) =>
+        !string.IsNullOrWhiteSpace(signerRole)
+        && (signerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+            || signerRole.Equals("Engineer", StringComparison.OrdinalIgnoreCase)
+            || signerRole.Equals("Supervisor", StringComparison.OrdinalIgnoreCase));
 }

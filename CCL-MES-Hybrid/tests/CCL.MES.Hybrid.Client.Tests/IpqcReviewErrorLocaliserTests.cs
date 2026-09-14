@@ -23,21 +23,21 @@ public sealed class IpqcReviewErrorLocaliserTests
     // ── LocaliseApiError ───────────────────────────────────────────
 
     [Theory]
-    [InlineData("wo.not_found",                       "WO not found on the server.")]
-    [InlineData("wo.invalid_phase",                   "WO is not in a phase that allows this action — reload the state.")]
-    [InlineData("wo.if_match_required",               "Data session expired — reload the state.")]
-    [InlineData("wo.idempotency_key_required",        "Request is missing the idempotency key — contact IT.")]
-    [InlineData("ipqc.invalid_status",                "Slot status must be OK or NG.")]
-    [InlineData("ipqc.invalid_reason_code",           "NG reason code is not in the catalog — choose one from the list.")]
-    [InlineData("ipqc.invalid_ng_note",               "An NG note is required when marking NG (1-500 characters).")]
-    [InlineData("ipqc.invalid_judgment",              "Judgment must be Go Run / Stop Line / Special Accept.")]
-    [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
+    [InlineData("wo.not_found",                       "Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.")]
+    [InlineData("wo.invalid_phase",                   "Lệnh không còn ở bước cho phép thao tác này — nạp lại màn hình.")]
+    [InlineData("wo.if_match_required",               "Dữ liệu trên màn hình đã cũ — nạp lại rồi làm lại.")]
+    [InlineData("wo.idempotency_key_required",        "Yêu cầu thiếu khoá chống trùng — báo IT.")]
+    [InlineData("ipqc.invalid_status",                "Trạng thái phải là OK hoặc NG.")]
+    [InlineData("ipqc.invalid_reason_code",           "Mã lỗi NG không có trong danh mục — chọn một mã trong danh sách.")]
+    [InlineData("ipqc.invalid_ng_note",               "Đánh NG thì bắt buộc ghi mô tả (1–500 ký tự).")]
+    [InlineData("ipqc.invalid_judgment",              "Kết luận phải là Cho chạy / Dừng chuyền / Chấp nhận đặc biệt.")]
+    [InlineData("ipqc.judgment_inconsistent",         "Đang có hạng mục NG nên không Cho chạy được — chọn Dừng chuyền hoặc Chấp nhận đặc biệt.")]
     // 2026-09-14: câu cũ nói SAI luật — "4 slots" chỉ đúng với WO legacy; WO chạy
     // chế độ hạng mục (data-driven) có thể có 14 hạng mục. Sửa CÂU, không nới luật.
     [InlineData("ipqc.not_ready_for_judgment",        "Còn hạng mục chưa xác nhận OK/NG — chấm hết rồi mới phán định được.")]
-    [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
-    [InlineData("qa.invalid_outcome",                 "QA outcome must be Approve or Reject.")]
-    [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
+    [InlineData("ipqc.invalid_special_accept_reason", "Chấp nhận đặc biệt thì bắt buộc ghi lý do (1–500 ký tự).")]
+    [InlineData("qa.invalid_outcome",                 "Quyết định QA phải là Duyệt hoặc Từ chối.")]
+    [InlineData("qa.invalid_qa_reason",               "Bắt buộc ghi lý do QA (1–500 ký tự).")]
     public void Locked_VN_banner_for_each_api_error_code(string code, string expected)
     {
         var error = new ApiError { Code = code, MessageEn = "ignored" };
@@ -49,8 +49,11 @@ public sealed class IpqcReviewErrorLocaliserTests
     {
         var error = new ApiError { Code = "qa.same_user_as_ipqc_submitter", MessageEn = "ignored" };
         var msg = IpqcReviewErrorLocaliser.LocaliseApiError(422, error);
-        Assert.Contains("dual-sig", msg);
-        Assert.Contains("DIFFERENT from the IPQC submitter", msg);
+        // Ý ĐỒ của test giữ nguyên: băng-rôn phải NÊU TÊN luật và nói rõ phải
+        // khác ai. Chỉ ngôn ngữ đổi — 14-09 dịch sang tiếng Việt vì người đọc
+        // là người đứng máy, không phải lập trình viên.
+        Assert.Contains("4-mắt", msg);
+        Assert.Contains("KHÁC người đã phán định IPQC", msg);
     }
 
     [Fact]
@@ -66,16 +69,16 @@ public sealed class IpqcReviewErrorLocaliserTests
     // ── LocaliseSetError ───────────────────────────────────────────
 
     [Theory]
-    [InlineData("wo.state_conflict",                  "Another operation has already updated this WO. Reloading the latest state — try again.")]
+    [InlineData("wo.state_conflict",                  "Lệnh vừa được cập nhật ở nơi khác. Màn hình đang lấy lại trạng thái mới — bấm lại.")]
     [InlineData("wo.if_match_required",               "Data session has not been reloaded — scan the WO again.")]
-    [InlineData("wo.idempotency_key_required",        "Request is missing the idempotency key — contact IT.")]
-    [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
+    [InlineData("wo.idempotency_key_required",        "Yêu cầu thiếu khoá chống trùng — báo IT.")]
+    [InlineData("ipqc.judgment_inconsistent",         "Đang có hạng mục NG nên không Cho chạy được — chọn Dừng chuyền hoặc Chấp nhận đặc biệt.")]
     // 2026-09-14: câu cũ nói SAI luật — "4 slots" chỉ đúng với WO legacy; WO chạy
     // chế độ hạng mục (data-driven) có thể có 14 hạng mục. Sửa CÂU, không nới luật.
     [InlineData("ipqc.not_ready_for_judgment",        "Còn hạng mục chưa xác nhận OK/NG — chấm hết rồi mới phán định được.")]
-    [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
-    [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
-    [InlineData("http.empty_body",                    "The server returned an empty response — contact IT.")]
+    [InlineData("ipqc.invalid_special_accept_reason", "Chấp nhận đặc biệt thì bắt buộc ghi lý do (1–500 ký tự).")]
+    [InlineData("qa.invalid_qa_reason",               "Bắt buộc ghi lý do QA (1–500 ký tự).")]
+    [InlineData("http.empty_body",                    "Máy chủ trả về phản hồi rỗng — báo IT.")]
     public void Locked_VN_banner_for_each_in_band_error_code(string code, string expected)
     {
         Assert.Equal(expected, IpqcReviewErrorLocaliser.LocaliseSetError(code));
@@ -113,8 +116,8 @@ public sealed class IpqcReviewErrorLocaliserTests
         // WHY + WHAT TO DO.
         var msg = IpqcReviewErrorLocaliser.Q3SameUserBanner;
         Assert.False(string.IsNullOrWhiteSpace(msg));
-        Assert.Contains("dual-sig", msg);
-        Assert.Contains("Sign out", msg);
-        Assert.Contains("different QC account", msg);
+        // Ý ĐỒ giữ nguyên (nêu tên luật + nói phải làm gì); 14-09 đổi sang tiếng Việt.
+        Assert.Contains("4-mắt", msg);
+        Assert.Contains("đăng nhập bằng tài khoản QC khác", msg);
     }
 }

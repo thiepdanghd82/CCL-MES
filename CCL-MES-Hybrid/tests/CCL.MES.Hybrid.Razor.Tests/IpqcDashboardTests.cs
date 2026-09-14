@@ -116,7 +116,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-initial-error']");
-            Assert.Contains("WO not found", banner.TextContent);
+            Assert.Contains("Không thấy lệnh sản xuất", banner.TextContent);
         });
     }
 
@@ -498,7 +498,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-set-error']");
-            Assert.Contains("already updated this WO", banner.TextContent);
+            Assert.Contains("vừa được cập nhật ở nơi khác", banner.TextContent);
             // Reload count: initial + after-conflict refetch = 2.
             Assert.Equal(2, api.IpqcViewCalls.Count);
         });

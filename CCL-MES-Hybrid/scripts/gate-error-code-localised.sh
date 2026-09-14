@@ -33,6 +33,11 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Ratchet — chỉ được GIẢM. Đo 2026-09-14: 83 câu còn tiếng Anh sau khi dịch trọn
+# IpqcReviewErrorLocaliser. Bốn localiser còn lại (Prepress · RunningSurface ·
+# WoQcReview · IqcDocument · WorkOrder) là NỢ ĐÃ GHI NHẬN, không phải lỗi mới.
+ENGLISH_BASELINE=83
+
 run() {  # $1 = thư mục gốc repo
   python3 - "$1" <<'PY'
 import re, glob, sys, os
@@ -74,6 +79,21 @@ for srcs, loc in PAIRS:
     for m in missing:
         print(f"        câm: {m}")
 print(f"TOTAL {tot-bad}/{tot}")
+
+# Ratchet: câu báo lỗi còn viết bằng TIẾNG ANH. Có mã trong localiser chưa đủ —
+# người đứng máy phải ĐỌC được. Đo 14-09: 103/139 câu là tiếng Anh trên màn hình
+# xưởng Việt, mà gate chỉ kiểm "có mặt" nên báo xanh suốt.
+VI = "\u00e0\u00e1\u1ea3\u00e3\u1ea1\u0103\u1eb1\u1eaf\u1eb3\u1eb5\u1eb7\u00e2\u1ea7\u1ea5\u1ea9\u1eab\u1ead\u0111\u00e8\u00e9\u1ebb\u1ebd\u1eb9\u00ea\u1ec1\u1ebf\u1ec3\u1ec5\u1ec7\u00ec\u00ed\u1ec9\u0129\u1ecb\u00f2\u00f3\u1ecf\u00f5\u1ecd\u00f4\u1ed3\u1ed1\u1ed5\u1ed7\u1ed9\u01a1\u1edd\u1edb\u1edf\u1ee1\u1ee3\u00f9\u00fa\u1ee7\u0169\u1ee5\u01b0\u1eeb\u1ee9\u1eed\u1eef\u1ef1\u1ef3\u00fd\u1ef7\u1ef9\u1ef5"
+eng = engtot = 0
+for f in sorted(glob.glob(f"{cli}/**/*ErrorLocaliser.cs", recursive=True)):
+    seen = set()
+    for code, text in re.findall(r'"([a-z][a-z._]+)"\s*=>\s*"([^"]{8,})"', open(f).read()):
+        if code in seen: continue
+        seen.add(code)
+        engtot += 1
+        if not any(ch in VI for ch in text.lower()):
+            eng += 1
+print(f"ENGLISH {eng}/{engtot}")
 sys.exit(1 if bad else 0)
 PY
 }
@@ -109,8 +129,10 @@ command -v python3 >/dev/null 2>&1 || { echo "[gate:error-code-localised:FAIL] k
 [ -d "$ROOT/CCL-MES-Hybrid/src/CCL.MES.Api" ] || { echo "[gate:error-code-localised:FAIL] không thấy cây nguồn."; exit 2; }
 
 out="$(run "$ROOT")"; rc=$?
-echo "$out" | grep -v '^TOTAL'
+echo "$out" | grep -vE '^TOTAL|^ENGLISH'
 line="$(echo "$out" | grep '^TOTAL')"
+engline="$(echo "$out" | grep '^ENGLISH')"
+eng="${engline#ENGLISH }"; eng="${eng%%/*}"
 
 if [ "$rc" -ne 0 ]; then
   echo "[gate:error-code-localised:FAIL] ${line#TOTAL } mã có câu — số còn lại hiện trần mã lỗi ra màn hình."
@@ -120,5 +142,12 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-echo "[gate:error-code-localised:OK] ${line#TOTAL } mã lỗi đều có câu cho người đọc."
+echo "[gate:error-code-localised] câu còn viết bằng TIẾNG ANH: $eng (baseline $ENGLISH_BASELINE)"
+if [ "${eng:-0}" -gt "$ENGLISH_BASELINE" ]; then
+  echo "[gate:error-code-localised:FAIL] số câu tiếng Anh TĂNG so với baseline."
+  echo "  Người đứng máy đọc tiếng Việt. Thêm câu mới thì viết tiếng Việt;"
+  echo "  hạ baseline khi dịch bớt, KHÔNG nâng lên."
+  exit 1
+fi
+echo "[gate:error-code-localised:OK] ${line#TOTAL } mã lỗi đều có câu, và số câu tiếng Anh không tăng."
 exit 0

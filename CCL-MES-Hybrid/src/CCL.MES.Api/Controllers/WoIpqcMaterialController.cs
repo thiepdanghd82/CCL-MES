@@ -8,6 +8,8 @@ using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.StateMachine;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Api.Auth;
+using CCL.MES.Api.Policies;
 using CCL.MES.Shared.IpqcReview;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,18 +42,21 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
     private readonly Services.WoMutationExecutor _executor;
     private readonly Services.IpqcMaterialMaterializer _materializer;
     private readonly IpqcMaterialWaiverOptions _waiver;
+    private readonly ElectronicSignatureVerifier _signature;
 
     public WoIpqcMaterialController(
         IMesDbContext db,
         IAuditWriter audit,
         Services.WoMutationExecutor executor,
         Services.IpqcMaterialMaterializer materializer,
-        IOptions<IpqcMaterialWaiverOptions> waiver)
+        IOptions<IpqcMaterialWaiverOptions> waiver,
+        ElectronicSignatureVerifier signature)
         : base(db, audit)
     {
         _executor = executor;
         _materializer = materializer;
         _waiver = waiver.Value;
+        _signature = signature;
     }
 
     // ── GET {id}/ipqc/material-system ──────────────────────────────
@@ -162,9 +167,45 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
             return Invalid("material.not_divergent",
                 $"BOM line {bomLineIdx} has no divergence to waive (confirm it first, or the lot matched IQC).");
 
-        // Q1 dual-sig — approver must differ from the confirmer.
+        // ── CHỮ KÝ ĐIỆN TỬ (Thiệp chốt 2026-09-14) ─────────────────────────
+        // Đặt TRƯỚC mọi phép mutate: trả về sớm ở đây thì không gì được ghi, vì
+        // SaveChanges nằm mãi dưới CommitAndAuditAsync.
+        //
+        // Người ký CÓ THỂ khác người đang đăng nhập — cả chuyền dùng chung một
+        // máy, kỹ sư đi tới, ký, rồi đi. Hồ sơ đứng tên NGƯỜI KÝ.
+        var sig = await _signature.VerifyAsync(
+            req.SignerUsername, req.SignerPassword,
+            IpqcSignaturePolicy.WaiverSignerRoleAllowed, ct);
+
+        if (!sig.Ok)
+        {
+            // Audit ghi tên GÕ VÀO + lý do + phiên nào đang mở máy.
+            // Mật khẩu KHÔNG BAO GIỜ vào đây — xem skill cmes-audit-emit.
+            await _audit.EmitAsync(
+                action: AuditAction.WoIpqcMaterialSignDenied,
+                actor: actor, actorRole: role,
+                targetType: "WorkOrder", targetId: id.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    wo_id = id,
+                    wo_no = wo.WoNo,
+                    bom_line_idx = bomLineIdx,
+                    typed_username = sig.TypedUsername,
+                    reason = sig.ErrorCode,
+                    lock_minutes = sig.LockMinutes,
+                    session_actor = actor,
+                }));
+            return Invalid(sig.ErrorCode!, sig.Message!);
+        }
+
+        var signer = sig.Username!;
+
+        // Q1 dual-sig — người PHÊ DUYỆT phải khác người đã xác nhận dòng.
+        // So với NGƯỜI KÝ chứ không phải phiên đang mở: máy chung đăng nhập bằng
+        // một tài khoản thì so tên phiên sẽ chặn oan mọi kỹ sư, đúng cảnh Thiệp
+        // gặp ngày 14-09.
         if (!WoIpqcMaterialCheckService.ValidateDistinctWaiver(
-                row.ConfirmedBy, actor, _waiver.RequireDistinctMaterialWaiver))
+                row.ConfirmedBy, signer, _waiver.RequireDistinctMaterialWaiver))
         {
             await _audit.EmitAsync(
                 action: AuditAction.WoIpqcMaterialApproveDenied,
@@ -176,14 +217,17 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
                     wo_no = wo.WoNo,
                     bom_line_idx = bomLineIdx,
                     reason = "same_user_as_confirmer",
-                    attempted_by = actor,
+                    attempted_by = signer,        // NGƯỜI KÝ, không phải phiên
+                    session_actor = actor,
                     confirmed_by = row.ConfirmedBy,
                 }));
             return Invalid("material.same_user_as_confirmer",
                 "Người phê duyệt waiver không được trùng người xác nhận vật tư — nguyên tắc 4-mắt.");
         }
 
-        WoIpqcMaterialCheckService.ApproveDivergence(row, approve, req.Reason!, actor, DateTime.UtcNow);
+        // Hồ sơ đứng tên NGƯỜI KÝ. Ghi tên phiên thì trên máy dùng chung mọi
+        // waiver sẽ mang cùng một tên và truy trách nhiệm thành vô nghĩa.
+        WoIpqcMaterialCheckService.ApproveDivergence(row, approve, req.Reason!, signer, DateTime.UtcNow);
 
         return await CommitAndAuditAsync(id, wo, rows, row, actor, role,
             AuditAction.WoIpqcMaterialApprove,

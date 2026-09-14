@@ -192,6 +192,12 @@ public sealed class IpqcDashboardFirstArticleTests : TestContext
         cut.Find("[data-testid='ipqc-material-row-0-waiver-reason']").Input("Đã đối chiếu chứng từ, chấp nhận lô thay thế");
         cut.Find("[data-testid='ipqc-material-row-0-waiver-approve']").Click();
 
+        // 2026-09-14: nút mở HỘP KÝ; ký xong mới gửi lên máy chủ.
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-waiver-sign-user']")));
+        cut.Find("[data-testid='ipqc-waiver-sign-user']").Input("ky-su-test");
+        cut.Find("[data-testid='ipqc-waiver-sign-pwd']").Input("mat-khau-test");
+        cut.Find("[data-testid='ipqc-waiver-sign-confirm']").Click();
+
         cut.WaitForAssertion(() =>
         {
             var call = Assert.Single(_api.PostIpqcMaterialApproveDivergenceCalls);
@@ -766,6 +772,12 @@ public sealed class IpqcDashboardFirstArticleTests : TestContext
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-material-row-0-waiver-approve']")));
         cut.Find("[data-testid='ipqc-material-row-0-waiver-reason']").Input("lý do hợp lệ");
         cut.Find("[data-testid='ipqc-material-row-0-waiver-approve']").Click();
+
+        // 2026-09-14: nút mở HỘP KÝ; ký xong mới gửi lên máy chủ.
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-waiver-sign-user']")));
+        cut.Find("[data-testid='ipqc-waiver-sign-user']").Input("ky-su-test");
+        cut.Find("[data-testid='ipqc-waiver-sign-pwd']").Input("mat-khau-test");
+        cut.Find("[data-testid='ipqc-waiver-sign-confirm']").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-set-error']")));
     }

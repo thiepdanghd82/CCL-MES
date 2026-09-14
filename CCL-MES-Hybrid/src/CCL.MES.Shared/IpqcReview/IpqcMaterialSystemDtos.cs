@@ -77,6 +77,15 @@ public sealed record ApproveDivergenceRequest
 {
     public string? Outcome { get; init; }
     public string? Reason { get; init; }
+
+    /// <summary>Tài khoản NGƯỜI KÝ waiver (Thiệp chốt 2026-09-14). Có thể khác
+    /// người đang đăng nhập — cả chuyền dùng chung một máy, kỹ sư đi tới, ký,
+    /// rồi đi. Hồ sơ đứng tên người ký, và luật 4-mắt so người ký với người đã
+    /// xác nhận dòng vật tư.</summary>
+    public string? SignerUsername { get; init; }
+
+    /// <summary>Mật khẩu người ký. KHÔNG BAO GIỜ được ghi vào audit/log.</summary>
+    public string? SignerPassword { get; init; }
 }
 
 /// <summary>IPQC first-article — common reply for the material-system mutations.

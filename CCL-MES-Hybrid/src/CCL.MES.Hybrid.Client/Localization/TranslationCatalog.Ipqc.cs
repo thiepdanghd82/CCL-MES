@@ -67,6 +67,11 @@ public sealed partial class TranslationCatalog
         Add("ipqc.sign.user.ph",   "Tài khoản người đánh giá",             "Inspector account");
         Add("ipqc.sign.pwd.ph",    "Mật khẩu",                             "Password");
         Add("ipqc.sign.hint",      "Gõ đúng tài khoản và mật khẩu của bạn thì mới phán định và chuyển bước được.", "Enter your own account and password to submit the judgment and advance.");
+        // Ký duyệt waiver vật tư — người ký là KỸ SƯ, khác tập vai với phán định IPQC.
+        Add("ipqc.material.waiver.sign.title",   "Ký duyệt vật tư lệch — kỹ sư",          "Material waiver sign-off — Engineer");
+        Add("ipqc.material.waiver.sign.user.ph", "Tài khoản kỹ sư",                        "Engineer account");
+        Add("ipqc.material.waiver.sign.confirm", "Ký và lưu",                              "Sign and save");
+        Add("ipqc.material.waiver.sign.hint",    "Gõ đúng tài khoản và mật khẩu của bạn. Hồ sơ sẽ đứng tên người ký, và người ký phải khác người đã xác nhận dòng vật tư này.", "Enter your own account and password. The record is stamped with the signer, who must differ from whoever confirmed this material row.");
         Add("ipqc.judgment.stopline",        "Dừng chuyền",                                                        "Stop Line");
         Add("ipqc.judgment.specialaccept",   "Chấp nhận đặc biệt",                                                 "Special Accept");
         Add("ipqc.rollup.allok",             "Cả 4 slot đều Đạt — nên chọn Cho chạy",                              "All 4 slots OK — Go Run recommended");

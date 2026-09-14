@@ -381,6 +381,7 @@ public static class AuditAction
     /// người ký không đủ vai, hoặc tài khoản đang bị khoá do gõ sai nhiều lần.
     /// Detail ghi tên GÕ VÀO và lý do; <b>tuyệt đối không ghi mật khẩu</b>.</summary>
     public const string WoIpqcSignDenied      = "WO_IPQC_SIGN_DENIED";
+    public const string WoIpqcMaterialSignDenied = "WO_IPQC_MATERIAL_SIGN_DENIED";
 
     /// <summary>P10.7d-1 — QA approver action on a SPECIAL_ACCEPT
     /// escalation (success path). detail JSON: { wo_id, outcome:

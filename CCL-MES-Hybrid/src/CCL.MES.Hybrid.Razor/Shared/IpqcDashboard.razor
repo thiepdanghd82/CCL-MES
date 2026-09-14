@@ -218,11 +218,11 @@
                                         <div class="ipqc-mat-waiver-actions">
                                             <button type="button" class="op-btn op-btn-success ipqc-judgment-btn"
                                                     disabled="@(!CanWaiveSubmit() || _busy)"
-                                                    @onclick="@(() => OnWaiveAsync(row.BomLineIdx, "Approve"))"
+                                                    @onclick="@(() => OpenWaiverSign(row.BomLineIdx, "Approve"))"
                                                     data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-approve")">@T("ipqc.material.waiver.approve")</button>
                                             <button type="button" class="op-btn op-btn-danger ipqc-judgment-btn"
                                                     disabled="@(!CanWaiveSubmit() || _busy)"
-                                                    @onclick="@(() => OnWaiveAsync(row.BomLineIdx, "Reject"))"
+                                                    @onclick="@(() => OpenWaiverSign(row.BomLineIdx, "Reject"))"
                                                     data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-reject")">@T("ipqc.material.waiver.reject")</button>
                                         </div>
                                     }
@@ -663,6 +663,64 @@
     }
 </div>
 
+@* ── Hộp KÝ DUYỆT waiver vật tư (Thiệp chốt 2026-09-14) ────────────────────
+   Surface GIAO DỊCH (điền → xác nhận → đóng) nên dùng <Modal> căn giữa, KHÔNG
+   phải FloatingWindow — theo bảng quyết định của skill cmes-floating-showcard.
+
+   Vì sao phải ký chứ không bấm thẳng: waiver là quyết định KỸ THUẬT chịu trách
+   nhiệm cho một lô vật tư lệch dữ liệu IQC. Hồ sơ phải đứng tên ĐÚNG kỹ sư đã
+   duyệt, không phải tên tài khoản đang mở trên máy chung của chuyền. Đây cũng
+   là thứ làm luật 4-mắt dùng được: người ký khác người đã xác nhận dòng. *@
+<Modal Open="@(_waiverSignFor is not null)"
+       Size="ModalSize.Sm"
+       Severity="@(_waiverSignOutcome == "Reject" ? ModalSeverity.Danger : ModalSeverity.Info)"
+       AriaLabel="@T("ipqc.material.waiver.sign.title")"
+       OnClose="CloseWaiverSign">
+    <Header>
+        <span data-testid="ipqc-waiver-sign-title">@T("ipqc.material.waiver.sign.title")</span>
+    </Header>
+    <Body>
+        <div class="ipqc-sign" data-testid="ipqc-waiver-sign">
+            <div class="ipqc-sign-head">
+                @(_waiverSignOutcome == "Reject"
+                    ? T("ipqc.material.waiver.reject")
+                    : T("ipqc.material.waiver.approve"))
+                @if (_waiverSignFor is { } idx)
+                {
+                    <span class="scan-mono"> · @MaterialCodeOf(idx)</span>
+                }
+            </div>
+            <div class="ipqc-sign-row">
+                <input type="text" class="prepress-input ipqc-sign-input"
+                       value="@_waiverSignUser" autocomplete="off"
+                       placeholder="@T("ipqc.material.waiver.sign.user.ph")"
+                       aria-label="@T("ipqc.material.waiver.sign.user.ph")"
+                       disabled="@_busy"
+                       data-testid="ipqc-waiver-sign-user"
+                       @oninput="(e) => _waiverSignUser = e.Value?.ToString()" />
+                <input type="password" class="prepress-input ipqc-sign-input"
+                       value="@_waiverSignPwd" autocomplete="off"
+                       placeholder="@T("ipqc.sign.pwd.ph")"
+                       aria-label="@T("ipqc.sign.pwd.ph")"
+                       disabled="@_busy"
+                       data-testid="ipqc-waiver-sign-pwd"
+                       @oninput="(e) => _waiverSignPwd = e.Value?.ToString()" />
+            </div>
+            <div class="ipqc-sign-hint">@T("ipqc.material.waiver.sign.hint")</div>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-ghost"
+                disabled="@_busy" @onclick="CloseWaiverSign"
+                data-testid="ipqc-waiver-sign-cancel">@T("ipqc.btn.cancel")</button>
+        <button type="button"
+                class="op-btn @(_waiverSignOutcome == "Reject" ? "op-btn-danger" : "op-btn-success")"
+                disabled="@_busy"
+                @onclick="ConfirmWaiverSignAsync"
+                data-testid="ipqc-waiver-sign-confirm">@T("ipqc.material.waiver.sign.confirm")</button>
+    </Footer>
+</Modal>
+
 @code {
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
 
@@ -710,6 +768,40 @@
     private IpqcMaterialSystemView? _material;
     private int? _openMaterialNgFor;     // BomLineIdx of the open material NG form
     private string _waiverReason = "";   // Engineer waiver reason draft
+
+    // ── Ký duyệt waiver vật tư (2026-09-14) ─────────────────────────
+    // Dòng đang chờ ký (null = hộp ký đóng) + quyết định sẽ ký.
+    private int? _waiverSignFor;
+    private string _waiverSignOutcome = "Approve";
+    private string? _waiverSignUser;
+    private string? _waiverSignPwd;
+
+    private void OpenWaiverSign(int bomLineIdx, string outcome)
+    {
+        if (_busy || !CanWaiveSubmit()) return;
+        _waiverSignFor = bomLineIdx;
+        _waiverSignOutcome = outcome;
+        _waiverSignUser = null;
+        _waiverSignPwd = null;
+        _setError = null;
+    }
+
+    /// <summary>Đóng hộp ký. Xoá mật khẩu LUÔN — máy dùng chung, để lại là
+    /// người sau ký bằng tài khoản người trước.</summary>
+    private void CloseWaiverSign()
+    {
+        _waiverSignFor = null;
+        _waiverSignUser = null;
+        _waiverSignPwd = null;
+    }
+
+    private Task ConfirmWaiverSignAsync() =>
+        _waiverSignFor is { } idx ? OnWaiveAsync(idx, _waiverSignOutcome) : Task.CompletedTask;
+
+    /// <summary>Mã vật tư của dòng, để hộp ký nói rõ đang ký cho dòng NÀO —
+    /// ký nhầm dòng trên hồ sơ chất lượng là thứ không sửa lại được.</summary>
+    private string MaterialCodeOf(int bomLineIdx) =>
+        _material?.Rows?.FirstOrDefault(r => r.BomLineIdx == bomLineIdx)?.MaterialCode ?? "";
 
     // TẦNG-2 — active tab, keyed by GroupLabel (2026-08-25: đổi từ CheckType
     // sang GroupLabel — "4 tab con giống QC Library"). Key = giá trị GroupLabel
@@ -1227,9 +1319,18 @@
         {
             var resp = await Api.PostIpqcMaterialApproveDivergenceAsync(
                 WorkOrderId, _material.ETag, bomLineIdx,
-                new ApproveDivergenceRequest { Outcome = outcome, Reason = _waiverReason });
+                new ApproveDivergenceRequest
+                {
+                    Outcome = outcome,
+                    Reason = _waiverReason,
+                    SignerUsername = _waiverSignUser,
+                    SignerPassword = _waiverSignPwd,
+                });
+            // Xoá mật khẩu khỏi bộ nhớ NGAY, bất kể kết quả. Giữ lại thì trên
+            // máy dùng chung người sau bấm nút là ký bằng tài khoản người trước.
+            _waiverSignPwd = null;
             await HandleMaterialResponseAsync(resp);
-            if (resp.Ok) _waiverReason = "";
+            if (resp.Ok) { _waiverReason = ""; CloseWaiverSign(); }
         }
         catch (ApiException apiEx)
         {

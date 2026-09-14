@@ -178,6 +178,10 @@ builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 // chung cho mọi request, nếu scoped thì mỗi lần gõ sai là một bộ đếm mới và
 // việc khoá thành vô nghĩa.
 builder.Services.AddSingleton<CCL.MES.Api.Auth.ReauthThrottle>();
+// Đối chiếu chữ ký tại điểm ký — DÙNG CHUNG cho phán định IPQC và waiver vật tư.
+// Scoped vì nó cầm MesDbContext; ReauthThrottle vẫn singleton nên bộ đếm khoá
+// sống xuyên request (nếu không thì thử-sai reset mỗi lần bấm = không hãm gì cả).
+builder.Services.AddScoped<CCL.MES.Api.Auth.ElectronicSignatureVerifier>();
 
 // IAuditWriter implementation — distinct from legacy AuditService (lives in
 // Web) but behaviour-identical. See ApiAuditWriter.cs for the parity note.

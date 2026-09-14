@@ -155,6 +155,14 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         return client;
     }
 
+    /// <summary>Thân request approve-divergence KÈM chữ ký (hợp đồng từ 2026-09-14).
+    /// Tài khoản test đều seed mật khẩu "P@ss!1" qua <c>ClientAsync</c>.</summary>
+    private static string Sign(string outcome, string reason, string signer) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            outcome, reason, signerUsername = signer, signerPassword = "P@ss!1",
+        });
+
     private static HttpRequestMessage Mk(HttpMethod method, string path, string body, string? ifMatch, string? idem)
     {
         var req = new HttpRequestMessage(method, path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -339,7 +347,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         await SeedMaterialCheckRowAsync(wo, 0, IpqcCheckStatus.Ng, DivergenceApprovalStatus.PendingEngineer);
         var op = await ClientAsync("op-h2-403", UserRole.Operator);
         var etag = await EtagAsync(wo);
-        var resp = await op.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Approve\",\"reason\":\"ok\"}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+        var resp = await op.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Approve", "ok", "op-h2-403"), $"\"{etag}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
@@ -355,7 +363,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
 
         var eng = await ClientAsync("eng-h2-appr", UserRole.Engineer);
         var etag2 = await EtagAsync(wo);
-        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Approve\",\"reason\":\"Lô thay thế đã kiểm\"}", $"\"{etag2}\"", Guid.NewGuid().ToString()));
+        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Approve", "Lô thay thế đã kiểm", "eng-h2-appr"), $"\"{etag2}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<IpqcMaterialSetResponse>();
         Assert.Equal("Approved", body!.RowApprovalStatus);
@@ -381,7 +389,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal(HttpStatusCode.OK, c.StatusCode);
 
         var etag2 = await EtagAsync(wo);
-        var resp = await admin.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Approve\",\"reason\":\"self\"}", $"\"{etag2}\"", Guid.NewGuid().ToString()));
+        var resp = await admin.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Approve", "self", "admin-h2-same"), $"\"{etag2}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("material.same_user_as_confirmer", err!.Code);
@@ -407,7 +415,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
 
         var eng = await ClientAsync("eng-h2-nd", UserRole.Engineer);
         var etag2 = await EtagAsync(wo);
-        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Approve\",\"reason\":\"x\"}", $"\"{etag2}\"", Guid.NewGuid().ToString()));
+        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Approve", "x", "eng-h2-nd"), $"\"{etag2}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("material.not_divergent", err!.Code);
@@ -420,7 +428,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         await SeedMaterialCheckRowAsync(wo, 0, IpqcCheckStatus.Ng, DivergenceApprovalStatus.PendingEngineer);
         var eng = await ClientAsync("eng-h2-outcome", UserRole.Engineer);
         var etag = await EtagAsync(wo);
-        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Perhaps\",\"reason\":\"x\"}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+        var resp = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Perhaps", "x", "eng-h2-outcome"), $"\"{etag}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("material.invalid_outcome", err!.Code);
@@ -446,7 +454,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         // Engineer waives → GoRun now succeeds.
         var eng = await ClientAsync("eng-h2-gorun", UserRole.Engineer);
         var etag2 = await EtagAsync(wo);
-        var appr = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), "{\"outcome\":\"Approve\",\"reason\":\"waive\"}", $"\"{etag2}\"", Guid.NewGuid().ToString()));
+        var appr = await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0), Sign("Approve", "waive", "eng-h2-gorun"), $"\"{etag2}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, appr.StatusCode);
 
         var etag3 = await EtagAsync(wo);
