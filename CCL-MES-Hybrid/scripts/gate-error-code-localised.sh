@@ -33,10 +33,9 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Ratchet — chỉ được GIẢM. Đo 2026-09-14: 83 câu còn tiếng Anh sau khi dịch trọn
-# IpqcReviewErrorLocaliser. Bốn localiser còn lại (Prepress · RunningSurface ·
-# WoQcReview · IqcDocument · WorkOrder) là NỢ ĐÃ GHI NHẬN, không phải lỗi mới.
-ENGLISH_BASELINE=83
+# Ratchet — chỉ được GIẢM. 2026-09-15: dịch nốt, còn 0. Con số 83 của hôm trước
+# phồng 15 đơn vị ảo vì phép đếm nhận nhầm KHOÁ DỊCH là tiếng Anh; nợ thật là 68.
+ENGLISH_BASELINE=0
 
 run() {  # $1 = thư mục gốc repo
   python3 - "$1" <<'PY'
@@ -84,12 +83,18 @@ print(f"TOTAL {tot-bad}/{tot}")
 # người đứng máy phải ĐỌC được. Đo 14-09: 103/139 câu là tiếng Anh trên màn hình
 # xưởng Việt, mà gate chỉ kiểm "có mặt" nên báo xanh suốt.
 VI = "\u00e0\u00e1\u1ea3\u00e3\u1ea1\u0103\u1eb1\u1eaf\u1eb3\u1eb5\u1eb7\u00e2\u1ea7\u1ea5\u1ea9\u1eab\u1ead\u0111\u00e8\u00e9\u1ebb\u1ebd\u1eb9\u00ea\u1ec1\u1ebf\u1ec3\u1ec5\u1ec7\u00ec\u00ed\u1ec9\u0129\u1ecb\u00f2\u00f3\u1ecf\u00f5\u1ecd\u00f4\u1ed3\u1ed1\u1ed5\u1ed7\u1ed9\u01a1\u1edd\u1edb\u1edf\u1ee1\u1ee3\u00f9\u00fa\u1ee7\u0169\u1ee5\u01b0\u1eeb\u1ee9\u1eed\u1eef\u1ef1\u1ef3\u00fd\u1ef7\u1ef9\u1ef5"
+# Một số localiser trả về KHOÁ DỊCH ("iqc.doc.err.forbidden") chứ không trả
+# câu — câu thật nằm trong TranslationCatalog và đã có tiếng Việt. Bản đầu của
+# ratchet đếm chúng là "tiếng Anh" vì khoá không có dấu, làm baseline phồng lên
+# 15 đơn vị ảo. Nhận diện khoá: toàn chữ thường, có dấu chấm, không khoảng trắng.
+KEYLIKE = re.compile(r'^[a-z][a-z0-9._]*$')
 eng = engtot = 0
 for f in sorted(glob.glob(f"{cli}/**/*ErrorLocaliser.cs", recursive=True)):
     seen = set()
     for code, text in re.findall(r'"([a-z][a-z._]+)"\s*=>\s*"([^"]{8,})"', open(f).read()):
         if code in seen: continue
         seen.add(code)
+        if KEYLIKE.match(text): continue
         engtot += 1
         if not any(ch in VI for ch in text.lower()):
             eng += 1

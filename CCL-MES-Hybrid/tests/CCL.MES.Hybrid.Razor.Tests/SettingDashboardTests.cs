@@ -166,7 +166,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-initial-error']");
-            Assert.Contains("WO not found on the server.", banner.TextContent);
+            Assert.Contains("Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.", banner.TextContent);
         });
     }
 
@@ -364,7 +364,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-set-error']");
-            Assert.Contains("Another operation has already updated this WO", banner.TextContent);
+            Assert.Contains("vừa được cập nhật ở nơi khác", banner.TextContent);
         });
         // Optimistic-revert: reloaded (initial 1 + reload after 409 = 2).
         Assert.Equal(2, api.SettingChecksViewCalls.Count);

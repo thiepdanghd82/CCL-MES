@@ -18,31 +18,31 @@ public static class PrepressErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "wo.not_found"                      => "WO not found on the server.",
-            "wo.material_row_not_found"         => "Material row not found — reload the checklist.",
-            "wo.invalid_phase"                  => "WO is not in the PREPRESS phase — cannot record the check.",
-            "wo.if_match_required"              => "Data session expired — reload the checklist.",
-            "wo.idempotency_key_required"       => "Request is missing the idempotency key — contact IT.",
-            "prepress.invalid_status"           => "Invalid status — only Pending / OK / NG are accepted.",
-            "prepress.invalid_reason_code"      => "NG reason code is not in the Scrap catalog — choose a valid code.",
-            "prepress.invalid_ng_note"          => "An NG note is required when setting NG (1-500 characters).",
-            "prepress.special_accept_forbidden" => "Only a PD leader (Engineer) or Supervisor can special-accept a material.",
+            "wo.not_found"                      => "Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.",
+            "wo.material_row_not_found"         => "Không thấy dòng vật tư này — nạp lại danh sách.",
+            "wo.invalid_phase"                  => "Lệnh không còn ở bước chuẩn bị nên không ghi kiểm được — nạp lại màn hình.",
+            "wo.if_match_required"              => "Dữ liệu trên màn hình đã cũ — nạp lại danh sách rồi làm lại.",
+            "wo.idempotency_key_required"       => "Yêu cầu thiếu khoá chống trùng — báo IT.",
+            "prepress.invalid_status"           => "Trạng thái không hợp lệ — chỉ nhận Chờ / OK / NG.",
+            "prepress.invalid_reason_code"      => "Mã lỗi NG không có trong danh mục — chọn một mã trong danh sách.",
+            "prepress.invalid_ng_note"          => "Đánh NG thì bắt buộc ghi mô tả (1–500 ký tự).",
+            "prepress.special_accept_forbidden" => "Chỉ kỹ sư hoặc quản đốc mới chấp nhận đặc biệt vật tư được — nhờ người có quyền.",
             // Nói người vận hành phải LÀM GÌ, không nói luật bị vi phạm. Câu
             // "lot_required" trần thì họ đọc xong vẫn không biết gõ vào đâu.
-            "prepress.lot_required"             => "Enter the lot number printed on the roll before confirming this line OK.",
-            "prepress.part_scan_required"       => "Scan the material label before confirming this line OK.",
-            "prepress.part_scan_mismatch"       => "The scanned part does not match this BOM line — you are holding the wrong material.",
-            "prepress.lot_not_released"         => "This lot has not been passed by IQC — get a released lot, or ask a PD leader to Special Accept.",
+            "prepress.lot_required"             => "Nhập số lô in trên cuộn trước khi xác nhận OK cho dòng này.",
+            "prepress.part_scan_required"       => "Quét nhãn vật tư trước khi xác nhận OK cho dòng này.",
+            "prepress.part_scan_mismatch"       => "Mã vừa quét không khớp dòng vật tư này — đang cầm nhầm vật tư.",
+            "prepress.lot_not_released"         => "Lô này chưa qua IQC — lấy lô đã được thả, hoặc nhờ kỹ sư chấp nhận đặc biệt.",
 
             // Mã lỗi LÔ — trước đây chỉ với tới được ở đường tiêu thụ nên chưa
             // ai dịch. Từ khi gắn nhãn lô cũng chặn thật khi SAI VẬT TƯ, chúng
             // hiện ngay trên màn Pre-press. Không có bốn dòng này thì người vận
             // hành nhận nguyên chuỗi "HTTP 422 · lot.part_mismatch · …".
-            "lot.part_mismatch"                 => "This lot belongs to a different material — check the roll label against the BOM line.",
-            "lot.rejected"                      => "This lot was rejected by IQC — do not load it. Get a replacement lot.",
-            "lot.not_released"                  => "This lot has not been released by IQC yet — wait for the IQC verdict.",
-            "lot.expired"                       => "This lot is past its expiry date — ask QC to re-test or use another lot.",
-            "lot.not_found"                     => "No such lot in the system — check the number, or ask the warehouse to register it at IQC.",
+            "lot.part_mismatch"                 => "Lô này thuộc vật tư khác — đối chiếu nhãn cuộn với dòng vật tư.",
+            "lot.rejected"                      => "Lô này đã bị IQC loại — KHÔNG được đưa lên máy. Lấy lô khác thay.",
+            "lot.not_released"                  => "Lô này IQC chưa thả — chờ kết luận của IQC.",
+            "lot.expired"                       => "Lô này đã quá hạn — nhờ QC kiểm lại, hoặc dùng lô khác.",
+            "lot.not_found"                     => "Hệ thống không có số lô này — kiểm lại số, hoặc nhờ kho khai báo ở IQC.",
             _                                   => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -53,10 +53,10 @@ public static class PrepressErrorLocaliser
     /// first.</summary>
     public static string LocaliseSetError(string code) => code switch
     {
-        "wo.state_conflict"           => "Another operation has already updated this checklist. Reloading the latest state — try recording again.",
+        "wo.state_conflict"           => "Danh sách vừa được cập nhật ở nơi khác. Màn hình đang lấy lại trạng thái mới — ghi lại.",
         "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
-        "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
-        "http.empty_body"             => "The server returned an empty response — contact IT.",
+        "wo.idempotency_key_required" => "Yêu cầu thiếu khoá chống trùng — báo IT.",
+        "http.empty_body"             => "Máy chủ trả về phản hồi rỗng — báo IT.",
         _                             => $"Unknown error code ({code}).",
     };
 

@@ -738,7 +738,7 @@ else
             var summary = await Api.GetWorkOrderByNoAsync(lookupCode);
             if (summary is null)
             {
-                _lookupError = $"WO number \"{lookupCode}\" not found. Check the code or scan again.";
+                _lookupError = T("wo.lookup.notfound", lookupCode);
             }
             else
             {

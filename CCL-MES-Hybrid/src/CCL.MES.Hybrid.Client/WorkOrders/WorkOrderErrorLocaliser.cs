@@ -16,15 +16,15 @@ public static class WorkOrderErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "work_order.not_found"        => "WO not found on the server.",
-            "device.invalid_id"           => "Invalid device ID — contact IT.",
-            "device.not_seen"             => "Station not recognized yet — try again later.",
-            "scan.empty_payload"          => "Empty scan payload — scan again.",
+            "work_order.not_found"        => "Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.",
+            "device.invalid_id"           => "Mã thiết bị không hợp lệ — báo IT.",
+            "device.not_seen"             => "Máy trạm chưa được nhận diện — thử lại sau ít phút.",
+            "scan.empty_payload"          => "Không đọc được nội dung mã — quét lại.",
             // P10.7a-1.3 codes — should not surface in normal flow because
             // the client always sends both headers; mapped for
             // defence-in-depth.
-            "wo.if_match_required"        => "Data session expired — scan the WO again.",
-            "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
+            "wo.if_match_required"        => "Dữ liệu trên màn hình đã cũ — quét lại mã WO.",
+            "wo.idempotency_key_required" => "Yêu cầu thiếu khoá chống trùng — báo IT.",
             _                             => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -51,9 +51,9 @@ public static class WorkOrderErrorLocaliser
         "InvalidStepTransition"       => "Invalid step transition.",
         // P10.7a-1.3 — concurrency + idempotency codes from the
         // RowVersion + Idempotency-Key contract retrofit.
-        "wo.state_conflict"           => "Another operation has already updated this WO. Tap 'Accept / Start' again to retry with the latest version.",
+        "wo.state_conflict"           => "Lệnh vừa được cập nhật ở nơi khác. Bấm lại \"Nhận / Bắt đầu\" để làm với bản mới nhất.",
         "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
-        "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
+        "wo.idempotency_key_required" => "Yêu cầu thiếu khoá chống trùng — báo IT.",
         _                             => $"Unknown error code ({code}).",
     };
 }

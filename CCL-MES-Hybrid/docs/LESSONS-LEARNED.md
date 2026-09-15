@@ -1201,6 +1201,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Gate động vì lý do không phải defect** | `gate-thin-controller` đỏ sau khi thêm attribute: `RoutingController` vượt 400 dòng. Tôi thêm **attribute và chú thích**, không thêm logic — tức phép đo động vì lý do khác với defect nó nhắm. Không bump baseline; gộp attribute vào cùng dòng `[HttpPost(...)]` theo style sẵn có ⇒ 0 dòng thêm. **Bump baseline phải là lựa chọn cuối, không phải cách rẻ nhất.** |
 | **Cơ chế chặn tái phát** | `scripts/gate-endpoint-policy.sh` (gate 27, có `--self-test`): endpoint ghi phải có policy HOẶC dấu `RBAC-OPEN`. Ratchet baseline 0. Kiểm chứng bằng tiêm: thêm một endpoint ghi im lặng → gate đỏ; bỏ Operator khỏi `ShopFloorWrite` → 2 test siết-nhầm đỏ. **Luật rút ra: một quyết định bảo mật không nằm trong mã thì không tồn tại. "Cố ý mở" phải viết ra được, nếu không nó không phân biệt nổi với sơ suất.** |
 
+### L97 — con số của chính cái ratchet mình dựng có thể sai, và sai theo hướng làm mình yên tâm
+
+| | |
+|---|---|
+| **Bối cảnh** | Dịch nốt báo lỗi ra tiếng Việt. Ratchet dựng ngày 14-09 báo **83** câu còn tiếng Anh. |
+| **Con số sai** | 15 trong số đó là `IqcDocumentErrorLocaliser`, và nó **không trả câu** — nó trả **khoá dịch** (`"iqc.doc_edit_forbidden" => "iqc.doc.err.forbidden"`), câu thật nằm trong `TranslationCatalog` và **đã có tiếng Việt từ lâu**. Phép đếm nhận diện "tiếng Anh" bằng "không có dấu tiếng Việt", mà khoá dịch thì đương nhiên không có dấu. Nợ thật là **68**, không phải 83. |
+| **Vì sao nguy hiểm theo hướng ngược lại với thường lệ** | Baseline phồng lên **che mất tiến độ**: dịch xong 68 câu mà con số vẫn không về 0 thì người làm tưởng còn nợ, hoặc tệ hơn — quen với việc con số không bao giờ về 0 và thôi nhìn nó. Một ratchet mà không ai tin là một ratchet đã chết. |
+| **Fix** | Phép đếm bỏ qua giá trị có hình dạng KHOÁ (`^[a-z][a-z0-9._]*$` — toàn chữ thường, có dấu chấm, không khoảng trắng). Baseline 83 → **0**. |
+| **Câu tiếng Anh cuối cùng nằm ngoài tầm mọi phép quét** | `WorkOrders.razor:741` dựng câu "WO number … not found" **thẳng trong Razor**, không qua localiser — nên mọi lần quét localiser đều báo sạch. Chỉ một test đỏ mới lôi nó ra. Sửa xong lại trúng gate `i18n-parity`: chuỗi tiếng Việt **trần** trong `.razor` là vi phạm — bản tiếng Anh cũ lọt suốt vì gate ấy chỉ đếm chuỗi **tiếng Việt** trần. Đưa vào `TranslationCatalog` với `{0}` mới đúng. |
+| **Cơ chế chặn tái phát** | `gate-error-code-localised` ratchet baseline 0, phép đếm đã sửa. Kiểm chứng bằng tiêm: thêm một câu tiếng Anh → gate đỏ; phục hồi → xanh. **Luật rút ra: một ratchet đo bằng heuristic phải được kiểm bằng mắt ít nhất một lần trên dữ liệu thật. Câu hỏi đúng không phải "con số có giảm không" mà "con số này đang đếm cái gì".** Và: hai gate cùng canh một chủ đề vẫn để lọt, nếu mỗi cái chỉ soi một nửa (localiser vs `.razor`, tiếng Anh vs tiếng Việt). |
+
 ----
 
 ## Adding a new lesson

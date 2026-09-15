@@ -37,9 +37,9 @@ public sealed class WorkOrderErrorLocaliserTests
         var msg = WorkOrderErrorLocaliser.LocaliseAdvanceError("wo.state_conflict");
         // Operator-actionable guidance is the contract — "tap again"
         // is what the client does after adopting the new ETag.
-        Assert.Contains("Another operation", msg);
-        Assert.Contains("Accept / Start", msg);
-        Assert.Contains("latest version", msg);
+        Assert.Contains("vừa được cập nhật ở nơi khác", msg);
+        Assert.Contains("Nhận / Bắt đầu", msg);
+        Assert.Contains("bản mới nhất", msg);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class WorkOrderErrorLocaliserTests
     public void Idempotency_key_required_banner_tells_operator_to_call_IT()
     {
         var msg = WorkOrderErrorLocaliser.LocaliseAdvanceError("wo.idempotency_key_required");
-        Assert.Contains("contact IT", msg);
+        Assert.Contains("báo IT", msg);
     }
 
     [Fact]
@@ -68,12 +68,12 @@ public sealed class WorkOrderErrorLocaliserTests
     // ── LocaliseApiError — 4xx envelope codes (ApiException path) ──
 
     [Theory]
-    [InlineData("work_order.not_found", "WO not found on the server.")]
-    [InlineData("device.invalid_id", "Invalid device ID — contact IT.")]
-    [InlineData("device.not_seen", "Station not recognized yet — try again later.")]
-    [InlineData("scan.empty_payload", "Empty scan payload — scan again.")]
-    [InlineData("wo.if_match_required", "Data session expired — scan the WO again.")]
-    [InlineData("wo.idempotency_key_required", "Request is missing the idempotency key — contact IT.")]
+    [InlineData("work_order.not_found", "Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.")]
+    [InlineData("device.invalid_id", "Mã thiết bị không hợp lệ — báo IT.")]
+    [InlineData("device.not_seen", "Máy trạm chưa được nhận diện — thử lại sau ít phút.")]
+    [InlineData("scan.empty_payload", "Không đọc được nội dung mã — quét lại.")]
+    [InlineData("wo.if_match_required", "Dữ liệu trên màn hình đã cũ — quét lại mã WO.")]
+    [InlineData("wo.idempotency_key_required", "Yêu cầu thiếu khoá chống trùng — báo IT.")]
     public void Known_api_error_codes_have_locked_VN_strings(string code, string expected)
     {
         var apiErr = new ApiError { Code = code, MessageEn = "server-side detail" };

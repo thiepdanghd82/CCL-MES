@@ -31,6 +31,7 @@ public sealed partial class TranslationCatalog
         Add("wo.find",                   "Tìm",                                         "Find");
         Add("wo.scananother",            "Quét WO khác",                                "Scan another WO");
         Add("wo.lookup.progress",        "Đang tra cứu {0}…",                           "Looking up {0}…");
+        Add("wo.lookup.notfound",        "Không thấy lệnh sản xuất \"{0}\" — kiểm lại mã, hoặc quét lại.", "Work order \"{0}\" not found — check the code or scan again.");
 
         // Active Work Orders landing list.
         Add("wo.active.head",            "Lệnh SX đang chạy ({0})",                     "Active Work Orders ({0})");

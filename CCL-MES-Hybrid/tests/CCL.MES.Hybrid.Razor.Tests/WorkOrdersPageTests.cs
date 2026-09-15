@@ -124,7 +124,7 @@ public sealed class WorkOrdersPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var err = cut.Find("div.scan-error");
-            Assert.Contains("not found", err.TextContent);
+            Assert.Contains("Không thấy lệnh sản xuất", err.TextContent);
             Assert.Contains("WO-26-9999", err.TextContent);
         });
     }
@@ -197,8 +197,8 @@ public sealed class WorkOrdersPageTests : TestContext
             Assert.Empty(cut.FindAll("[data-testid='advance-success-banner']"));
             // The error banner MUST render the state-conflict text.
             var err = cut.Find("div.wo-card-error");
-            Assert.Contains("Another operation", err.TextContent);
-            Assert.Contains("Accept / Start", err.TextContent);
+            Assert.Contains("vừa được cập nhật ở nơi khác", err.TextContent);
+            Assert.Contains("Nhận / Bắt đầu", err.TextContent);
         });
     }
 
