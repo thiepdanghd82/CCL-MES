@@ -6,6 +6,7 @@ using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
+using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.StateMachine;
 using CCL.MES.Shared;
@@ -492,13 +493,67 @@ public sealed class IpqcReviewController : WoMutationControllerBase
 
     // ── POST /work-orders/{id}/ipqc/judgment ───────────────────────
 
+    /// <summary>
+    /// Quyền riêng cần có ứng với KẾT QUẢ phán định, không ứng với endpoint.
+    ///
+    /// <para>Thiệp chốt 2026-09-15: <i>"phê duyệt sản xuất là IPQC xác nhận nếu
+    /// kiểm tra tất cả OK, không có chấp nhận đặc biệt"</i>. Ba nút trên cùng một
+    /// màn hình là ba quyết định khác hẳn nhau:</para>
+    /// <list type="bullet">
+    ///   <item><b>Cho chạy</b> — mọi thứ ĐẠT, cho hàng đi tiếp ⇒
+    ///         <c>ApproveProduction</c>.</item>
+    ///   <item><b>Dừng chuyền</b> và <b>Chấp nhận đặc biệt</b> — phán quyết chất
+    ///         lượng ⇒ <c>ApproveQc</c>, y như trước.</item>
+    /// </list>
+    ///
+    /// <para>Gộp cả ba vào một <c>[Authorize(Policy="CapApproveQc")]</c> như trước
+    /// là nói rằng ba quyết định ấy cùng một loại quyền — và làm cột "Phê duyệt
+    /// sản xuất" trên bảng phân quyền thành cột trang trí: tick hay bỏ tick đều
+    /// không đổi gì.</para>
+    ///
+    /// <para><b>Vì sao nút "Chấp nhận đặc biệt" ở ĐÂY lại KHÔNG gác bằng quyền
+    /// <c>SpecialAccept</c>.</b> Nút này không cho hàng đi đâu cả — nó đẩy lệnh
+    /// sang <c>QA_PENDING</c> để người khác quyết, tức là ĐỀ NGHỊ nhượng bộ chứ
+    /// chưa phải nhượng bộ. Vai QC mặc định KHÔNG có <c>SpecialAccept</c> (quyền
+    /// đó suy từ waiver kỹ sư), nên gác nút này bằng nó là lấy mất đường leo thang
+    /// của chính người phát hiện hàng lỗi: họ sẽ chỉ còn Dừng chuyền. Thử rồi —
+    /// <c>ApproveProductionCapabilityTests</c> bắt được ngay ở vai QC.
+    /// Nhượng bộ THẬT vẫn có cổng riêng và vẫn đang gác bằng <c>SpecialAccept</c>:
+    /// <c>PrepressController.SpecialAcceptMaterial</c> và waiver vật tư IPQC.</para>
+    /// </summary>
+    private static string CapabilityFor(IpqcJudgment judgment) => judgment switch
+    {
+        IpqcJudgment.GoRun => UserPermission.ApproveProduction,
+        _                  => UserPermission.ApproveQc,
+    };
+
+    private static string ForbiddenCodeFor(IpqcJudgment judgment) => judgment switch
+    {
+        IpqcJudgment.GoRun         => "ipqc.go_run_forbidden",
+        IpqcJudgment.SpecialAccept => "ipqc.special_accept_forbidden",
+        _                          => "ipqc.stop_line_forbidden",
+    };
+
     [HttpPost("{id:long}/ipqc/judgment"), Authorize(Policy = "IpqcSubmit")]
-    [Authorize(Policy = "CapApproveQc")]
+    // RBAC-OPEN: quyền riêng KHÔNG gác được bằng attribute ở đây — nó phụ thuộc
+    //            KẾT QUẢ nằm trong thân request, mà attribute thì không đọc được
+    //            thân. Kiểm ngay đầu method qua CapabilityFor(). Cổng vai
+    //            IpqcSubmit ở trên vẫn giữ nguyên.
     public async Task<IActionResult> PostJudgment(
         long id, [FromBody] SubmitIpqcJudgmentRequest? req)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
         var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        // Đặt TRƯỚC prelude: từ chối quyền phải đến trước mọi lỗi khác, và người
+        // gọi đã tự khai kết quả trong thân request nên câu trả lời không lộ gì.
+        // Thân hỏng thì bỏ qua ở đây — ParseJudgment phía dưới trả 422 đúng mã cũ.
+        var intent = IpqcJudgmentPolicy.ParseJudgment(req?.Judgment);
+        if (intent.IsValid && !User.HasClaim("perm", CapabilityFor(intent.Judgment)))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiError.Of(
+                ForbiddenCodeFor(intent.Judgment),
+                "Tài khoản này không có quyền thực hiện phán định đó. "
+                + "Nhờ quản trị cấp quyền trong Quản lý tài khoản, hoặc để người có quyền bấm."));
 
         var pre = await PreludeAsync(id, actor, role, "ipqc_judgment");
         if (pre.Error is not null) return pre.Error;

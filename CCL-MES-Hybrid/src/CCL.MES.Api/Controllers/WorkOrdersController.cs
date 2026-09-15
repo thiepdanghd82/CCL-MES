@@ -1,3 +1,4 @@
+using CCL.MES.Api.Policies;
 using System.Security.Claims;
 using System.Text.Json;
 using CCL.MES.Api.Mapping;
@@ -252,7 +253,7 @@ public sealed class WorkOrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:long}/advance")]
     [Authorize(Policy = "ShopFloorWrite")]
-    [Authorize(Policy = "CapEditData")]
+    // RBAC-OPEN: quyền riêng phụ thuộc PHA ⇒ gác trong method (WoAdvanceCapabilityPolicy).
     public async Task<ActionResult<AdvanceWorkOrderResponse>> Advance(long id)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
@@ -262,6 +263,12 @@ public sealed class WorkOrdersController : ControllerBase
         var existing = await _svc.GetAsync(id);
         if (existing is null)
             return NotFound(ApiError.Of("work_order.not_found", $"No work order with id {id}."));
+
+        // Rời PREPRESS = duyệt sản xuất; pha khác = sửa dữ liệu. Lý do đầy đủ
+        // ở Policies/WoAdvanceCapabilityPolicy.
+        var needed = WoAdvanceCapabilityPolicy.CapabilityFor(existing.MesPhase);
+        if (!User.HasClaim("perm", needed))
+            return StatusCode(StatusCodes.Status403Forbidden, WoAdvanceCapabilityPolicy.ForbiddenError(needed));
 
         // P10.7a-1.3 — contract §6.1 + §6.2 enforcement layer for the
         // legacy /advance endpoint. Ordering matters:

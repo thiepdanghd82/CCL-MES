@@ -31,6 +31,12 @@ public static class IpqcReviewErrorLocaliser
             "ipqc.judgment_inconsistent"            => "Đang có hạng mục NG nên không Cho chạy được — chọn Dừng chuyền hoặc Chấp nhận đặc biệt.",
             "ipqc.signature_required"               => "Nhập tài khoản và mật khẩu của người đánh giá IPQC để ký duyệt.",
             "ipqc.signature_invalid"                => "Tài khoản hoặc mật khẩu không đúng.",
+            // Quyền theo KẾT QUẢ phán định (Thiệp chốt 2026-09-15): ba nút là ba
+            // quyết định khác nhau nên ba quyền khác nhau. Nói rõ THIẾU quyền NÀO —
+            // "không có quyền" chung chung thì quản trị không biết tick ô nào.
+            "ipqc.go_run_forbidden"                 => "Tài khoản này không có quyền Phê duyệt sản xuất nên không bấm Cho chạy được. Nhờ quản trị tick ô \"Phê duyệt sản xuất\" trong Quản lý tài khoản.",
+            "ipqc.special_accept_forbidden"         => "Tài khoản này không có quyền Phê duyệt QC nên không đề nghị Chấp nhận đặc biệt được.",
+            "ipqc.stop_line_forbidden"              => "Tài khoản này không có quyền Phê duyệt QC nên không bấm Dừng chuyền được.",
             "ipqc.signer_not_allowed"               => "Tài khoản này không có quyền phán định IPQC.",
             "ipqc.signature_locked"                 => "Tài khoản đang tạm khoá do gõ sai nhiều lần. Thử lại sau ít phút.",
             "ipqc.signature_password_not_set"       => "Tài khoản này chưa đặt mật khẩu riêng nên chưa ký được. Đăng nhập một lần để đổi mật khẩu, rồi ký lại.",
@@ -65,6 +71,12 @@ public static class IpqcReviewErrorLocaliser
         "ipqc.judgment_inconsistent"            => "Đang có hạng mục NG nên không Cho chạy được — chọn Dừng chuyền hoặc Chấp nhận đặc biệt.",
         "ipqc.signature_required"               => "Nhập tài khoản và mật khẩu của người đánh giá IPQC để ký duyệt.",
         "ipqc.signature_invalid"                => "Tài khoản hoặc mật khẩu không đúng.",
+        // Quyền theo KẾT QUẢ phán định (Thiệp chốt 2026-09-15): ba nút là ba
+        // quyết định khác nhau nên ba quyền khác nhau. Nói rõ THIẾU quyền NÀO —
+        // "không có quyền" chung chung thì quản trị không biết tick ô nào.
+        "ipqc.go_run_forbidden"                 => "Tài khoản này không có quyền Phê duyệt sản xuất nên không bấm Cho chạy được. Nhờ quản trị tick ô \"Phê duyệt sản xuất\" trong Quản lý tài khoản.",
+        "ipqc.special_accept_forbidden"         => "Tài khoản này không có quyền Phê duyệt QC nên không đề nghị Chấp nhận đặc biệt được.",
+        "ipqc.stop_line_forbidden"              => "Tài khoản này không có quyền Phê duyệt QC nên không bấm Dừng chuyền được.",
         "ipqc.signer_not_allowed"               => "Tài khoản này không có quyền phán định IPQC.",
         "ipqc.signature_locked"                 => "Tài khoản đang tạm khoá do gõ sai nhiều lần. Thử lại sau ít phút.",
         "ipqc.signature_password_not_set"       => "Tài khoản này chưa đặt mật khẩu riêng nên chưa ký được. Đăng nhập một lần để đổi mật khẩu, rồi ký lại.",

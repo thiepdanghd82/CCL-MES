@@ -53,8 +53,16 @@ public static class UserPermission
         EditData          => IsKnown(role) && !IsSys(role),
         ApproveQc         => Is(role, UserRole.Admin, UserRole.Supervisor,
                                  UserRole.Qc, UserRole.EngineerQuality),
-        ApproveProduction => Is(role, UserRole.Admin, UserRole.Supervisor,
-                                 UserRole.EngineerProduction),
+        // Thiệp chốt 2026-09-15 (làm rõ): "phê duyệt sản xuất" là quyền cho
+        // hàng ĐI TIẾP qua một cổng QC khi MỌI THỨ ĐẠT — IPQC bấm Cho chạy,
+        // hoặc prepress chuyển sang bước sau. Khác hẳn "phê duyệt đặc biệt"
+        // là cho đi tiếp DÙ CÓ cái không đạt.
+        //
+        // Nên người giữ quyền này chính là người đứng cổng: QC ở IPQC, công
+        // nhân sản xuất ở prepress. Bảng Thiệp vẽ ban đầu KHÔNG tick cho
+        // operator và qc — nhưng theo giải thích sau đó thì chính họ là người
+        // bấm, và siết theo bảng vẽ sẽ làm CHUYỀN ĐỨNG. Theo giải thích.
+        ApproveProduction => IsKnown(role) && !IsSys(role),
         SpecialAccept     => Is(role, UserRole.Admin, UserRole.Supervisor,
                                  UserRole.EngineerProduction, UserRole.EngineerQuality,
                                  UserRole.Engineer),

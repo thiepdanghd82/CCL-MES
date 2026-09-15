@@ -71,8 +71,15 @@ public sealed class CapabilityPolicyWireTests : IClassFixture<MesApiFactory>
     // ── Tick TẮT phải có hiệu lực thật ─────────────────────────────────────
 
     [Fact]
-    public async Task Tat_quyen_ApproveQc_thi_nguoi_do_KHONG_phan_dinh_duoc_nua()
+    public async Task Tat_quyen_qua_WIRE_thi_nguoi_do_KHONG_phan_dinh_duoc_nua()
     {
+        // 2026-09-15 — trước đây test này tắt `ApproveQc` rồi bấm GoRun. Sau khi
+        // Thiệp làm rõ ("phê duyệt sản xuất là IPQC xác nhận nếu tất cả OK"),
+        // nút Cho chạy do `ApproveProduction` gác, nên tắt ApproveQc không còn
+        // chặn nó nữa — và test cũ sẽ đỏ vì lý do ĐÚNG. Đổi sang đúng quyền đang
+        // gác nút ấy; mục đích của test không đổi: chứng minh admin tick TẮT
+        // trên bảng là có hiệu lực THẬT qua wire, không phải bảng trang trí.
+        // Ánh xạ theo-kết-quả có bộ test riêng ở ApproveProductionCapabilityTests.
         await _fx.SeedUserAsync("cap-victim", Pwd, UserRole.Qc);
         long victimId;
         using (var scope = _fx.Services.CreateScope())
@@ -87,13 +94,13 @@ public sealed class CapabilityPolicyWireTests : IClassFixture<MesApiFactory>
         await _fx.LoginAndAuthenticateAsync(before, "cap-victim", Pwd);
         Assert.NotEqual(HttpStatusCode.Forbidden, (await before.SendAsync(Judgment(1))).StatusCode);
 
-        // Admin tắt quyền ApproveQc của người này.
+        // Admin tắt quyền "Phê duyệt sản xuất" của người này.
         var admin = await ClientAsync("cap-admin", UserRole.Admin);
         var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v2/admin/users/{victimId}/permissions")
         {
             Content = new StringContent(JsonSerializer.Serialize(new
             {
-                permissions = new Dictionary<string, bool?> { ["ApproveQc"] = false },
+                permissions = new Dictionary<string, bool?> { ["ApproveProduction"] = false },
                 signerUsername = "cap-admin", signerPassword = Pwd,
             }), Encoding.UTF8, "application/json"),
         };

@@ -16,6 +16,11 @@ public static class WorkOrderErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
+            // Thiệp chốt 2026-09-15: rời PREPRESS là đứng ở một CỔNG và cho hàng qua
+            // ("phê duyệt sản xuất"), khác với bước chuyển vận hành bình thường. Hai
+            // mã riêng để người bị chặn biết quản trị cần tick ô NÀO.
+            "wo.advance_approve_production_forbidden" => "Tài khoản này không có quyền Phê duyệt sản xuất nên chưa cho lệnh rời Prepress được. Nhờ quản trị tick ô \"Phê duyệt sản xuất\" trong Quản lý tài khoản.",
+            "wo.advance_forbidden"        => "Tài khoản này không có quyền Sửa dữ liệu nên chưa chuyển bước cho lệnh được.",
             "work_order.not_found"        => "Không thấy lệnh sản xuất này trên máy chủ — quét lại mã WO.",
             "device.invalid_id"           => "Mã thiết bị không hợp lệ — báo IT.",
             "device.not_seen"             => "Máy trạm chưa được nhận diện — thử lại sau ít phút.",
