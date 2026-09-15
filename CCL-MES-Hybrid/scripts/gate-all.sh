@@ -43,6 +43,7 @@ GATES=(
   "bundle-assets:gate-bundle-assets.sh:2026-09-11 .app mang đúng stylesheet của repo — chặn DLL mới đi với CSS cũ"
   "422-error-shape:gate-422-error-shape.sh:2026-09-14 đường ghi đọc đúng thân 422 — chặn lỗi thật bị nuốt thành \"báo IT\""
   "error-localised:gate-error-code-localised.sh:2026-09-14 mã lỗi nào cũng có câu cho người đọc — chặn \"Unknown error code\" ra màn hình"
+  "endpoint-policy:gate-endpoint-policy.sh:2026-09-15 endpoint ghi phải tuyên bố phân quyền — chặn cổng mở mà không ai biết"
 )
 
 total="${#GATES[@]}"

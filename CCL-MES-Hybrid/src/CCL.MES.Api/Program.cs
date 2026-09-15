@@ -425,6 +425,17 @@ builder.Services.AddAuthorization(o =>
     // ĐƯỢC, kể cả Operator — vi phạm luật vàng #1 của skill cmes-rbac-matrix.
     // Đây là tiêu chí nghiệm thu sau đó lái ngưỡng IPQC xuống hồ sơ WO, nên
     // thuộc kỹ sư CHẤT LƯỢNG.
+    // A5 (2026-09-15) — thao tác VẬN HÀNH trên chuyền: xác nhận vật tư/bản
+    // kẽm/dao, chạy máy, đếm sản lượng, dừng/chạy lại, chuyển nhánh. Mọi vai
+    // đứng máy đều làm, nên danh sách rộng — nhưng RỘNG CÓ CHỦ Ý khác hẳn
+    // BỎ NGỎ: trước A5 những endpoint này chỉ dựa vào FallbackPolicy, tức
+    // "ai đăng nhập cũng ghi được" kể cả tài khoản hệ thống.
+    o.AddPolicy("ShopFloorWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor,
+            UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer,
+            UserRole.Qc, UserRole.Operator));
+
     o.AddPolicy("QcPlanWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor,

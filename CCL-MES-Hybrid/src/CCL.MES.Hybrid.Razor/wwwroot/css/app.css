@@ -5151,15 +5151,29 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 /* ── P10.6c — Account Control admin page ────────────────────── */
 
-.accounts-table { min-width: 1200px; }
+.accounts-table { min-width: 1320px; }
+
+/* 2026-09-15 — tiêu đề cột bị CẮT CỤT ("TRẠNG T" / "ĐỔI M" / "ĐĂNG NHẬP G").
+   Bề rộng vốn đặt theo nhãn tiếng Anh (Status · Change PW? · Last login);
+   nhãn tiếng Việt dài hơn, gặp `table-layout: fixed` + `overflow: hidden`
+   của .audit-table là mất chữ trong im lặng.
+
+   Sửa hai lớp, vì nới bề rộng một mình chỉ chữa đúng bộ nhãn hôm nay:
+   ① cho tiêu đề XUỐNG DÒNG thay vì cắt — ngôn ngữ nào cũng đọc được;
+   ② nới ba cột chật nhất để không phải xuống ba dòng. */
+.accounts-table th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: bottom;
+}
 
 .accounts-table col.acc-col-username { width: 160px; }
 .accounts-table col.acc-col-display  { width: 200px; }
 .accounts-table col.acc-col-role     { width: 130px; }
 .accounts-table col.acc-col-dept     { width: 130px; }
-.accounts-table col.acc-col-active   { width: 90px;  }
-.accounts-table col.acc-col-must     { width: 70px;  }
-.accounts-table col.acc-col-last     { width: 140px; }
+.accounts-table col.acc-col-active   { width: 110px; }
+.accounts-table col.acc-col-must     { width: 110px; }
+.accounts-table col.acc-col-last     { width: 170px; }
 .accounts-table col.acc-col-actions  { width: auto; }
 
 .acc-inline {

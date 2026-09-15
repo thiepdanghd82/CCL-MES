@@ -61,6 +61,8 @@ public sealed class MaterialLotsController : ControllerBase
     // ── POST /material-lots ────────────────────────────────────────
 
     [HttpPost("material-lots")]
+
+    // RBAC-OPEN: gác trong MaterialLotScanService (vai IQC nhập lô).
     public async Task<IActionResult> Create(
         [FromBody] CreateMaterialLotRequest? req, CancellationToken ct = default)
     {
@@ -75,6 +77,8 @@ public sealed class MaterialLotsController : ControllerBase
     // ── POST /material-lots/{id}/status ────────────────────────────
 
     [HttpPost("material-lots/{id:long}/status")]
+
+    // RBAC-OPEN: gác trong MaterialLotScanService.LotStatusRoles = Admin·Supervisor·QC.
     public async Task<IActionResult> SetStatus(
         long id, [FromBody] SetMaterialLotStatusRequest? req, CancellationToken ct = default)
     {
@@ -86,6 +90,8 @@ public sealed class MaterialLotsController : ControllerBase
     // ── POST /material-lots/{id}/extend-expiry ─────────────────────
 
     [HttpPost("material-lots/{id:long}/extend-expiry")]
+
+    // RBAC-OPEN: gác trong MaterialLotScanService (Đ3 — hai vai khác nhau).
     public async Task<IActionResult> ExtendExpiry(
         long id, [FromBody] ExtendMaterialLotExpiryRequest? req, CancellationToken ct = default)
     {
@@ -98,6 +104,8 @@ public sealed class MaterialLotsController : ControllerBase
     // ── POST /work-orders/{id}/materials/{idx}/consume ─────────────
 
     [HttpPost("work-orders/{id:long}/materials/{bomLineIdx:int}/consume")]
+
+    // RBAC-OPEN: quét lô lên dòng BOM — thao tác chuyền, gác trong service.
     public async Task<IActionResult> Consume(
         long id, int bomLineIdx, [FromBody] ConsumeMaterialLotRequest? req,
         CancellationToken ct = default)
@@ -113,6 +121,8 @@ public sealed class MaterialLotsController : ControllerBase
     // ── POST /material-consumptions/{id}/reverse ───────────────────
 
     [HttpPost("material-consumptions/{id:long}/reverse")]
+
+    // RBAC-OPEN: gác trong MaterialLotScanService.ReverseRoles = Admin·Supervisor.
     public async Task<IActionResult> Reverse(
         long id, [FromBody] ReverseConsumptionRequest? req, CancellationToken ct = default)
     {

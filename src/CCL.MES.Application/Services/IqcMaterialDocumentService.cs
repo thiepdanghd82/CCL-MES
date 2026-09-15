@@ -39,7 +39,9 @@ public sealed class IqcMaterialDocumentService
     /// người cầm giấy của NCC, phải đưa lên được ngay lúc nhận.</summary>
     private static readonly HashSet<string> EditorRoles =
         new(StringComparer.OrdinalIgnoreCase)
-        { UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc };
+        // A4 — hồ sơ vật tư IQC thuộc luồng CHẤT LƯỢNG.
+        { UserRole.Admin, UserRole.Supervisor,
+          UserRole.EngineerQuality, UserRole.Engineer, UserRole.Qc };
 
     public static bool CanEdit(string? role) => EditorRoles.Contains(role ?? "");
 

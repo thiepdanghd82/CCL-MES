@@ -47,6 +47,8 @@ public sealed class SemiStockController : ControllerBase
     // ── POST /semi-lots — post 1 lô vào kho ────────────────────────
 
     [HttpPost("semi-lots")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostLot([FromBody] PostSemiLotRequest? req, CancellationToken ct = default)
     {
         var (actor, role) = Who();
@@ -97,6 +99,8 @@ public sealed class SemiStockController : ControllerBase
     // ── POST /legs/{legId}/semi/reserve ────────────────────────────
 
     [HttpPost("work-orders/{id:long}/legs/{legId:long}/semi/reserve")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> Reserve(long id, long legId, [FromBody] ReserveSemiRequest? req, CancellationToken ct = default)
     {
         var (actor, role) = Who();
@@ -153,6 +157,8 @@ public sealed class SemiStockController : ControllerBase
     // ── POST /legs/{legId}/semi/consume ────────────────────────────
 
     [HttpPost("work-orders/{id:long}/legs/{legId:long}/semi/consume")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> Consume(long id, long legId, CancellationToken ct = default)
     {
         var (actor, role) = Who();

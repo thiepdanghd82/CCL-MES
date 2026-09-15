@@ -90,6 +90,8 @@ public sealed class DevicesController : ControllerBase
     }
 
     [HttpPost("{deviceId}/scan-log")]
+
+    // RBAC-OPEN: máy quét ghi nhật ký của chính thiết bị đang đăng nhập.
     public async Task<ActionResult<ScanLogResponse>> LogScan(string deviceId, [FromBody] ScanLogRequest req)
     {
         if (!IsValidDeviceId(deviceId))
@@ -124,6 +126,8 @@ public sealed class DevicesController : ControllerBase
     }
 
     [HttpPost("{deviceId}/heartbeat")]
+
+    // RBAC-OPEN: thiết bị báo còn sống; chặn theo vai là chặn chính máy của xưởng.
     public async Task<ActionResult<HeartbeatResponse>> Heartbeat(string deviceId, [FromBody] HeartbeatRequest req)
     {
         if (!IsValidDeviceId(deviceId))

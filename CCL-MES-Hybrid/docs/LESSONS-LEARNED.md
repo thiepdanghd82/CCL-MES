@@ -1189,6 +1189,18 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Lỗ hổng có sẵn lòi ra khi rà** | `QcSpecController.UpsertStage` + `CreateCapture` — **soạn kế hoạch QC**, tức tiêu chí nghiệm thu sau đó lái ngưỡng IPQC xuống hồ sơ WO — chỉ có `[Authorize]` trần ⇒ **Operator cũng ghi được**. Vi phạm luật vàng #1 của `cmes-rbac-matrix`. Quét toàn bộ: 34 endpoint ghi không có policy tường minh, phần lớn chính đáng (đăng nhập · tự đổi mật khẩu · heartbeat · thao tác chuyền), nhưng cái này thì không. Đã thêm policy `QcPlanWrite`. |
 | **Cơ chế chặn tái phát** | 10 test `A4EngineerSplitRbacTests`: mỗi surface có **một vai được phép + ít nhất một vai bị chặn** (đúng yêu cầu của skill), cộng hai test khoá **hai danh sách vai ở hai file** không lệch nhau (`EngineerWaive` ↔ `WaiverSignerRoles`, `IpqcSubmit` ↔ `JudgmentSignerRoles`) — đúng bệnh L83. Kiểm chứng bằng tiêm: cho kỹ sư sản xuất ghi tiêu chuẩn IQC → test lẫn-ngạch đỏ; bỏ một vai khỏi danh sách ký → test đồng bộ đỏ. **Luật rút ra: trước khi tách một vai, hãy tìm xem hệ đã phân ngạch khái niệm ấy bằng cách nào KHÁC chưa. Câu trả lời thường là "rồi", ở một cột mà không ai nhớ.** |
 
+### L96 — "cố ý mở" và "quên gác" trông giống hệt nhau trong mã
+
+| | |
+|---|---|
+| **Bối cảnh** | A5 — rà 32 endpoint ghi không có `[Authorize(Policy=...)]` tường minh, phát hiện khi làm A4. |
+| **Điều làm phép đo ban đầu SAI** | Script đầu tiên chỉ soi attribute nên xếp tất cả vào một rổ "bỏ ngỏ". Đọc kỹ từng cái thì ra **ba** nhóm khác hẳn nhau: (1) cố ý mở — đăng nhập · tự đổi mật khẩu của chính mình · heartbeat thiết bị; (2) **đã gác ở tầng dưới** — `MaterialLotScanService.LotStatusRoles`, `DrawingsService.CanActAs`, `PrepressController.SpecialAcceptRoles` đều trả 403 theo vai; (3) thật sự bỏ ngỏ. Nếu tin phép đo đầu thì đã gắn policy đè lên các cổng đang chạy đúng ở nhóm (2). |
+| **Vấn đề thật** | Ba nhóm ấy **trông giống hệt nhau khi đọc mã**. Không ai phân biệt được "cố ý mở" với "quên gác", nên không ai dám sửa, và endpoint mới cứ chép lại cái im lặng. |
+| **Fix** | 18 endpoint vận hành → policy `ShopFloorWrite` tường minh; 14 endpoint → dấu `// RBAC-OPEN: <lý do>` máy đọc được; 2 endpoint soạn kế hoạch QC → `QcPlanWrite` (A4). Im lặng không còn là một lựa chọn. |
+| **Nói thẳng giới hạn** | `ShopFloorWrite` gồm **cả 6 vai đăng nhập được**, nên nó là **tuyên bố ý đồ** chứ chưa phải ranh giới bảo mật. Giá trị nằm ở chỗ ý đồ ấy giờ nằm trong mã và có gate canh — thu hẹp về sau là thay đổi CÓ Ý THỨC, không phải một hôm nào đó ai đó sửa lặng lẽ. Rủi ro thật của đợt này là **siết nhầm** làm chuyền đứng, nên 13 test nhắm đúng đó: từng vai đứng máy phải KHÔNG bị 403. |
+| **Gate động vì lý do không phải defect** | `gate-thin-controller` đỏ sau khi thêm attribute: `RoutingController` vượt 400 dòng. Tôi thêm **attribute và chú thích**, không thêm logic — tức phép đo động vì lý do khác với defect nó nhắm. Không bump baseline; gộp attribute vào cùng dòng `[HttpPost(...)]` theo style sẵn có ⇒ 0 dòng thêm. **Bump baseline phải là lựa chọn cuối, không phải cách rẻ nhất.** |
+| **Cơ chế chặn tái phát** | `scripts/gate-endpoint-policy.sh` (gate 27, có `--self-test`): endpoint ghi phải có policy HOẶC dấu `RBAC-OPEN`. Ratchet baseline 0. Kiểm chứng bằng tiêm: thêm một endpoint ghi im lặng → gate đỏ; bỏ Operator khỏi `ShopFloorWrite` → 2 test siết-nhầm đỏ. **Luật rút ra: một quyết định bảo mật không nằm trong mã thì không tồn tại. "Cố ý mở" phải viết ra được, nếu không nó không phân biệt nổi với sơ suất.** |
+
 ----
 
 ## Adding a new lesson

@@ -315,6 +315,7 @@ public sealed class DrawingsApiController : ControllerBase
     /// Department claim.
     /// </summary>
     [HttpPost("{versionId:long}/decide")]
+    // RBAC-OPEN: cổng vai+phòng ban chạy trong orchestrator (DrawingsService.CanActAs) — gác ở tầng dưới, không phải bỏ ngỏ.
     [Authorize]
     public async Task<IActionResult> Decide(
         long revisionId,

@@ -181,6 +181,7 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     /// which is correct because the second-and-later callers see
     /// SettingStartAt non-null + bail out of the helper.)</summary>
     [HttpPost("{id:long}/setting/enter")]
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostSettingEnter(
         long id, [FromBody] SettingEnterRequest? req)
     {
@@ -218,6 +219,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /setting/done ─────────────────────────────────────────
 
     [HttpPost("{id:long}/setting/done")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostSettingDone(
         long id, [FromBody] SettingDoneRequest? req)
     {
@@ -273,6 +276,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/start ────────────────────────────────────────────
 
     [HttpPost("{id:long}/run/start")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunStart(
         long id, [FromBody] RunStartRequest? req)
     {
@@ -315,6 +320,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/qty ──────────────────────────────────────────────
 
     [HttpPost("{id:long}/run/qty")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunQty(
         long id, [FromBody] RunQtyAddRequest? req)
     {
@@ -365,6 +372,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/qty/correct ──────────────────────────────────────
 
     [HttpPost("{id:long}/run/qty/correct")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunQtyCorrect(
         long id, [FromBody] RunQtyCorrectRequest? req)
     {
@@ -418,6 +427,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/pause ────────────────────────────────────────────
 
     [HttpPost("{id:long}/run/pause")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunPause(
         long id, [FromBody] RunPauseRequest? req)
     {
@@ -464,6 +475,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/resume ───────────────────────────────────────────
 
     [HttpPost("{id:long}/run/resume")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunResume(
         long id, [FromBody] RunResumeRequest? req)
     {
@@ -494,6 +507,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     // ── POST /run/finish ───────────────────────────────────────────
 
     [HttpPost("{id:long}/run/finish")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PostRunFinish(
         long id, [FromBody] RunFinishRequest? req)
     {

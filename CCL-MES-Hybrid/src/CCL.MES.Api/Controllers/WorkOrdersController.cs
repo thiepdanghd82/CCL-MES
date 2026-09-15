@@ -251,6 +251,7 @@ public sealed class WorkOrdersController : ControllerBase
     /// genuinely missing from the database.
     /// </summary>
     [HttpPost("{id:long}/advance")]
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<ActionResult<AdvanceWorkOrderResponse>> Advance(long id)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";

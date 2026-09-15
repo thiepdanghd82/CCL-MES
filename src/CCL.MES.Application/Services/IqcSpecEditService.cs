@@ -37,7 +37,10 @@ public sealed class IqcSpecEditService
     /// <c>SettingItemAdd</c> (P10.7g). QC kiểm được nhưng không soạn tiêu chuẩn.</summary>
     private static readonly HashSet<string> EditorRoles =
         new(StringComparer.OrdinalIgnoreCase)
-        { UserRole.Admin, UserRole.Supervisor, UserRole.Engineer };
+        // A4 — tiêu chuẩn IQC là tiêu chí nghiệm thu vật tư đầu vào
+        // ⇒ kỹ sư CHẤT LƯỢNG.
+        { UserRole.Admin, UserRole.Supervisor,
+          UserRole.EngineerQuality, UserRole.Engineer };
 
     public static bool CanEdit(string? role) => EditorRoles.Contains(role ?? "");
 

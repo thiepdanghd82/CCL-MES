@@ -168,7 +168,7 @@ không nên có.
 
 ---
 
-## A5 — Rà 33 endpoint ghi không có policy tường minh
+## ~~A5 — Rà 33 endpoint ghi không có policy tường minh~~ ✅ ĐÃ XONG 2026-09-15
 
 **Vấn đề.** Luật vàng #1 của skill `cmes-rbac-matrix`: mọi endpoint mutation
 phải có `[Authorize(Policy=...)]` tường minh; dựa vào `FallbackPolicy` nghĩa là
@@ -180,6 +180,12 @@ Phần lớn có lý do chính đáng — `AuthController` (đăng nhập/refres
 (heartbeat/scan-log), và các thao tác vận hành trên chuyền mà mọi vai đứng máy
 đều làm. Nhưng **chưa ai rà từng cái và ghi lại lý do**, nên không phân biệt
 được "cố ý mở" với "quên gác".
+
+**Đã đóng.** Đo lại cho đúng: 32 endpoint, chia BA nhóm chứ không một —
+(1) cố ý mở · (2) đã gác ở tầng service · (3) thật sự bỏ ngỏ. Kết quả:
+18 → policy `ShopFloorWrite`, 14 → dấu `// RBAC-OPEN: <lý do>`, 2 → `QcPlanWrite`
+(đã làm ở A4). Gate 27 `gate-endpoint-policy.sh` ratchet baseline **0**.
+13 test nhắm vào rủi ro thật là SIẾT NHẦM. Bài học **L96**.
 
 **Work-class** W6 · **Agent** `cmes-implementer` · **Skill** `cmes-rbac-matrix`
 

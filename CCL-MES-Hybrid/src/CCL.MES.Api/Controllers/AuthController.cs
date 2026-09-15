@@ -50,6 +50,8 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+
+    // RBAC-OPEN: endpoint đăng nhập — bắt buộc mở, chưa có ai để phân quyền.
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest req)
     {
@@ -101,6 +103,8 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+
+    // RBAC-OPEN: đổi refresh token — danh tính nằm trong chính token, không ở vai.
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Refresh([FromBody] RefreshTokenRequest req)
     {
@@ -143,6 +147,8 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
+
+    // RBAC-OPEN: tự đăng xuất phiên của mình.
     [Authorize]
     public IActionResult Logout([FromBody] RefreshTokenRequest req)
     {

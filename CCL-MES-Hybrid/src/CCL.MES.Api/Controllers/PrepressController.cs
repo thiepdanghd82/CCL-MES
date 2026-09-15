@@ -116,6 +116,8 @@ public sealed class PrepressController : WoMutationControllerBase
     // ── PUT /materials/{bom_line_idx} ──────────────────────────────
 
     [HttpPut("{id:long}/materials/{bomLineIdx:int}")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PutMaterial(
         long id, int bomLineIdx, [FromBody] SetPrepressMaterialRequest? req)
     {
@@ -229,9 +231,14 @@ public sealed class PrepressController : WoMutationControllerBase
     // audited with special_accept=true. Role-gated to Admin/Supervisor/Engineer.
 
     private static readonly string[] SpecialAcceptRoles =
-        { UserRole.Admin, UserRole.Supervisor, UserRole.Engineer };
+        // A4 — chấp nhận đặc biệt vật tư là cùng loại quyết định với waiver
+        // IPQC (nhận vật tư không đạt) ⇒ CẢ HAI ngạch kỹ sư, như EngineerWaive.
+        { UserRole.Admin, UserRole.Supervisor,
+          UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer };
 
     [HttpPost("{id:long}/materials/{bomLineIdx:int}/special-accept")]
+
+    // RBAC-OPEN: gác bằng SpecialAcceptRoles ngay trong controller (403 tường minh).
     public async Task<IActionResult> SpecialAcceptMaterial(
         long id, int bomLineIdx, [FromBody] SpecialAcceptMaterialRequest? req)
     {
@@ -309,6 +316,8 @@ public sealed class PrepressController : WoMutationControllerBase
     // ── PUT /plate-check ───────────────────────────────────────────
 
     [HttpPut("{id:long}/plate-check")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PutPlate(
         long id, [FromBody] SetPrepressPlateRequest? req)
     {
@@ -359,6 +368,8 @@ public sealed class PrepressController : WoMutationControllerBase
     // ── PUT /cutter-check ──────────────────────────────────────────
 
     [HttpPut("{id:long}/cutter-check")]
+
+    [Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> PutCutter(
         long id, [FromBody] SetPrepressCutterRequest? req)
     {

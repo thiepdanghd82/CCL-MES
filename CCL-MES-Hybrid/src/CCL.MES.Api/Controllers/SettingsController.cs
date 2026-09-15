@@ -87,6 +87,8 @@ public sealed class SettingsController : ControllerBase
     }
 
     [HttpPatch("me")]
+
+    // RBAC-OPEN: người dùng sửa hồ sơ CỦA CHÍNH MÌNH; không đụng tài khoản khác.
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest req, CancellationToken ct)
     {
         if (req is null)
@@ -141,6 +143,8 @@ public sealed class SettingsController : ControllerBase
     // ── My Password ─────────────────────────────────────────────────
 
     [HttpPost("password")]
+
+    // RBAC-OPEN: người dùng đổi mật khẩu CỦA CHÍNH MÌNH.
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req, CancellationToken ct)
     {
         if (req is null

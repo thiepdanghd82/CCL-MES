@@ -277,7 +277,9 @@ public sealed class SettingChecksController : WoMutationControllerBase
     // ── Helpers ────────────────────────────────────────────────────
 
     private static bool IsEngineerPlus(string role) =>
-        role is UserRole.Admin or UserRole.Supervisor or UserRole.Engineer;
+        // A4 — hạng mục cài đặt máy là master data SẢN XUẤT.
+        role is UserRole.Admin or UserRole.Supervisor
+             or UserRole.EngineerProduction or UserRole.Engineer;
 
     private Task<string?> ProductCodeAsync(WorkOrder wo, CancellationToken ct = default) =>
         _db.Products.AsNoTracking()

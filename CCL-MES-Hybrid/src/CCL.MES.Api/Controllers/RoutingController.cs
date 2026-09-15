@@ -98,7 +98,7 @@ public sealed class RoutingController : ControllerBase
 
     // ── POST {id}/legs/materialize ─────────────────────────────────
 
-    [HttpPost("{id:long}/legs/materialize")]
+    [HttpPost("{id:long}/legs/materialize"), Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> Materialize(long id, CancellationToken ct = default)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
@@ -209,7 +209,7 @@ public sealed class RoutingController : ControllerBase
 
     // ── POST {id}/legs/{legId}/advance ─────────────────────────────
 
-    [HttpPost("{id:long}/legs/{legId:long}/advance")]
+    [HttpPost("{id:long}/legs/{legId:long}/advance"), Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> Advance(long id, long legId, [FromBody] LegAdvanceRequest? req, CancellationToken ct = default)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
@@ -293,7 +293,7 @@ public sealed class RoutingController : ControllerBase
 
     // ── POST {id}/legs/{legId}/rework ──────────────────────────────
 
-    [HttpPost("{id:long}/legs/{legId:long}/rework")]
+    [HttpPost("{id:long}/legs/{legId:long}/rework"), Authorize(Policy = "ShopFloorWrite")]
     public async Task<IActionResult> Rework(long id, long legId, [FromBody] LegReworkRequest? req, CancellationToken ct = default)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
