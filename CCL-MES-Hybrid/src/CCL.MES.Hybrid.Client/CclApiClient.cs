@@ -1993,6 +1993,31 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         return await ReadAsAsync<AccountPagedResult>(resp, ct);
     }
 
+    public async Task<PermissionMatrixView> GetPermissionMatrixAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/admin/users/permissions", ct);
+        return await ReadAsAsync<PermissionMatrixView>(resp, ct);
+    }
+
+    /// <summary>Ghi quyền riêng. Trả Ok/câu lỗi thay vì ném — bảng phân quyền
+    /// phải nói được LÝ DO ngay tại chỗ, không đẩy người dùng sang trang lỗi.</summary>
+    public async Task<PermissionWriteResult> SetUserPermissionsAsync(
+        long userId, UpdateUserPermissionsRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PutAsJsonAsync(
+            $"/{ApiVersion.Prefix}/admin/users/{userId}/permissions", req, ct);
+        if (resp.IsSuccessStatusCode) return new PermissionWriteResult { Ok = true };
+
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+        var code = string.IsNullOrEmpty(err?.Code) ? $"http.{(int)resp.StatusCode}" : err.Code;
+        return new PermissionWriteResult
+        {
+            Ok = false,
+            ErrorCode = code,
+            Message = IpqcReview.IpqcReviewErrorLocaliser.LocaliseSetError(code),
+        };
+    }
+
     public async Task<AccountDto> CreateAccountAsync(CreateAccountRequest req, CancellationToken ct = default)
     {
         using var resp = await _http.PostAsJsonAsync($"/{ApiVersion.Prefix}/admin/users", req, ct);

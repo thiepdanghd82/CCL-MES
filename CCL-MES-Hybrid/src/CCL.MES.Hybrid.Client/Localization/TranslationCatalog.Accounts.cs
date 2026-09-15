@@ -25,6 +25,28 @@ public sealed partial class TranslationCatalog
         Add("accounts.col.changepw",           "Đổi mật khẩu?",                                                           "Change PW?");
         Add("accounts.col.lastlogin",          "Đăng nhập gần nhất",                                                      "Last login");
         Add("accounts.col.actions",            "Thao tác",                                                                "Actions");
+        // Bảng phân quyền (Thiệp chốt 2026-09-15)
+        Add("accounts.perm.viewdata",          "Xem dữ liệu",                 "View data");
+        Add("accounts.perm.editdata",          "Nhập / Sửa dữ liệu",          "Enter / edit data");
+        Add("accounts.perm.approveqc",         "Phê duyệt QC",                "QC approval");
+        Add("accounts.perm.approveproduction", "Phê duyệt sản xuất",          "Production approval");
+        Add("accounts.perm.specialaccept",     "Phê duyệt đặc biệt",          "Special accept");
+        Add("accounts.perm.exportreport",      "Xuất báo cáo",                "Export report");
+        Add("accounts.perm.manageusers",       "Quản lý người dùng",          "Manage users");
+        Add("accounts.perm.systemconfig",      "Cấu hình hệ thống",           "System config");
+        Add("accounts.perm.count",             "Số quyền",                    "Permissions");
+        Add("accounts.perm.total",             "TỔNG SỐ NGƯỜI CÓ QUYỀN",      "USERS WITH PERMISSION");
+        Add("accounts.perm.currentuser",       "Người đang đăng nhập",        "Signed in as");
+        Add("accounts.perm.currentrole",       "Vai trò",                     "Role");
+        Add("accounts.perm.locked",            "KHOÁ — chỉ Admin mới được tick", "LOCKED — only Admin may tick");
+        Add("accounts.perm.unlocked",          "ĐÃ MỞ — tick để đổi quyền",   "UNLOCKED — tick to change");
+        Add("accounts.perm.unlock",            "Mở khoá",                     "Unlock");
+        Add("accounts.perm.lock",              "Khoá lại",                    "Lock");
+        Add("accounts.perm.authcode.ph",       "Mật khẩu admin để mở khoá",   "Admin password to unlock");
+        Add("accounts.perm.adminonly",         "Chỉ Admin mới sửa được phân quyền.", "Only an Admin can change permissions.");
+        Add("accounts.perm.byrole",            "Đang theo vai trò",           "Inherited from role");
+        Add("accounts.perm.overridden",        "Đã chỉnh riêng cho người này", "Overridden for this user");
+        Add("accounts.perm.err.noself",        "Không thấy tài khoản của bạn trong bảng — nạp lại trang.", "Your own account is missing from the table — reload the page.");
 
         // ── Row cells ──────────────────────────────────────────────────
         Add("accounts.self",                   "(bạn)",                                                                   "(you)");

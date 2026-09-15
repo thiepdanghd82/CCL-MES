@@ -1211,4 +1211,28 @@ public sealed class RecordingApi : ICclApiClient
     public Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<BackupScheduleStatusDto> SetBackupScheduleAsync(BackupScheduleUpdateRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken c = default) => throw new NotImplementedException();
+    // ── Bảng phân quyền (2026-09-15) ────────────────────────────────
+    public Func<CancellationToken, Task<PermissionMatrixView>>? PermissionMatrixImpl { get; set; }
+    public Func<long, UpdateUserPermissionsRequest, CancellationToken, Task<PermissionWriteResult>>? SetUserPermissionsImpl { get; set; }
+
+    public List<long> PermissionMatrixCalls { get; } = new();
+    public List<(long UserId, UpdateUserPermissionsRequest Req)> SetUserPermissionsCalls { get; } = new();
+
+    public Task<PermissionMatrixView> GetPermissionMatrixAsync(CancellationToken ct = default)
+    {
+        PermissionMatrixCalls.Add(1);
+        return PermissionMatrixImpl is null
+            ? Task.FromResult(new PermissionMatrixView())
+            : PermissionMatrixImpl(ct);
+    }
+
+    public Task<PermissionWriteResult> SetUserPermissionsAsync(
+        long userId, UpdateUserPermissionsRequest req, CancellationToken ct = default)
+    {
+        SetUserPermissionsCalls.Add((userId, req));
+        return SetUserPermissionsImpl is null
+            ? Task.FromResult(new PermissionWriteResult { Ok = true })
+            : SetUserPermissionsImpl(userId, req, ct);
+    }
+
 }

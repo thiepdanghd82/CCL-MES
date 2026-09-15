@@ -1,3 +1,4 @@
+using CCL.MES.Domain.Auth;
 using System.Security.Claims;
 using System.Text.Json;
 using CCL.MES.Api.Services;
@@ -54,11 +55,14 @@ public sealed class AccountControlController : ControllerBase
 {
     private readonly AccountControlService _svc;
     private readonly IAuditWriter _audit;
+    private readonly Auth.ElectronicSignatureVerifier _signature;
 
-    public AccountControlController(AccountControlService svc, IAuditWriter audit)
+    public AccountControlController(AccountControlService svc, IAuditWriter audit,
+        Auth.ElectronicSignatureVerifier signature)
     {
         _svc = svc;
         _audit = audit;
+            _signature = signature;
     }
 
     [HttpGet]
@@ -278,4 +282,70 @@ public sealed class AccountControlController : ControllerBase
 
     private string ActorName() => User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
     private string ActorRole() => User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+    // ── Bảng phân quyền (Thiệp chốt 2026-09-15) ─────────────────────
+
+    /// <summary>Đọc bảng phân quyền. Class đã `AdminOnly` nên không ai khác vào được.</summary>
+    [HttpGet("permissions")]
+    public async Task<IActionResult> PermissionMatrix(CancellationToken ct = default)
+        => Ok(await _svc.PermissionMatrixAsync(ActorName(), ActorRole(), ct));
+
+    /// <summary>
+    /// Sửa quyền riêng của một người.
+    ///
+    /// <para><b>Bắt ký lại mật khẩu.</b> Đổi phân quyền là hành vi nhạy cảm nhất
+    /// trong hệ — ai làm được việc này thì tự cấp được mọi quyền còn lại. Một
+    /// máy bỏ quên phiên admin đang mở KHÔNG được để người đi ngang sửa quyền.
+    /// Dùng lại đúng đường ký của IPQC: cùng hãm thử-sai, cùng mã lỗi chung,
+    /// mật khẩu không bao giờ vào audit.</para>
+    /// </summary>
+    [HttpPut("{id:long}/permissions")]
+    public async Task<IActionResult> SetPermissions(
+        long id, [FromBody] UpdateUserPermissionsRequest? req, CancellationToken ct = default)
+    {
+        var actor = ActorName();
+        var role  = ActorRole();
+
+        if (req is null)
+            return UnprocessableEntity(ApiError.Of("accounts.invalid_body", "Thiếu nội dung yêu cầu."));
+
+        // Chữ ký TRƯỚC mọi phép ghi.
+        var sig = await _signature.VerifyAsync(
+            req.SignerUsername, req.SignerPassword,
+            r => string.Equals(r, UserRole.Admin, StringComparison.OrdinalIgnoreCase), ct);
+
+        if (!sig.Ok)
+        {
+            await _audit.EmitAsync(
+                action: AuditAction.UserPermissionSignDenied, actor: actor, actorRole: role,
+                targetType: "User", targetId: id.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    target_user_id = id,
+                    typed_username = sig.TypedUsername,
+                    reason = sig.ErrorCode,
+                    lock_minutes = sig.LockMinutes,
+                    session_actor = actor,
+                }));
+            return UnprocessableEntity(ApiError.Of(sig.ErrorCode!, sig.Message!));
+        }
+
+        var result = await _svc.SetPermissionsAsync(id, req.Permissions, ct);
+        if (result.Outcome != AccountResult.Success)
+            return MapError(result.Outcome);
+
+        await _audit.EmitAsync(
+            action: AuditAction.UserPermissionSet, actor: actor, actorRole: role,
+            targetType: "User", targetId: id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                target_user_id = id,
+                target_username = result.Account?.Username,
+                signer = sig.Username,          // NGƯỜI KÝ, có thể khác phiên
+                session_actor = actor,
+                changed = req.Permissions,      // cờ nào đổi thành gì
+            }));
+
+        return Ok(result.Account);
+    }
 }

@@ -45,3 +45,41 @@ public sealed record AccountPagedResult
     public int Page { get; init; }
     public int PageSize { get; init; }
 }
+
+/// <summary>
+/// Danh sách vai cho GIAO DIỆN. Nguồn sự thật là
+/// <c>CCL.MES.Domain.Auth.UserRole.All</c>, nhưng `CCL.MES.Hybrid.Razor` không
+/// tham chiếu Domain được nên phải có bản sao ở tầng Shared.
+///
+/// <para><b>Hai bản sao là mầm lỗi, nên có test khoá chúng không lệch nhau</b>
+/// (<c>AccountRoleOptionsTests</c>) — cùng cách xử lý như danh sách vai ký ở A4.</para>
+///
+/// <para><b>Sự cố 2026-09-15:</b> trang Quản lý tài khoản gõ tay
+/// <c>{ "Admin", "Supervisor", "Engineer", "Qc", "Operator" }</c> — chữ
+/// <c>"Qc"</c> KHÔNG khớp giá trị thật trong DB là <c>"QC"</c>, nên
+/// <c>&lt;select&gt;</c> không tìm được option và hiện TRẮNG. Người dùng `qc`
+/// trông như "chưa gán vai". Sau A4 mảng ấy còn thiếu hai ngạch kỹ sư mới, tức
+/// admin KHÔNG gán được chúng từ giao diện.</para>
+/// </summary>
+public static class AccountRoleOptions
+{
+    public static readonly IReadOnlyList<string> All = new[]
+    {
+        "Admin", "Supervisor", "EngineerProduction", "EngineerQuality", "QC", "Operator",
+    };
+
+    /// <summary>Nhãn tiếng Việt cho từng vai — mã vai giữ nguyên tiếng Anh vì
+    /// nó là GIÁ TRỊ lưu trong DB và trong claim, đổi là hỏng dữ liệu cũ.</summary>
+    public static string Label(string? role) => role switch
+    {
+        "Admin"              => "Quản trị",
+        "Supervisor"         => "Quản đốc",
+        "EngineerProduction" => "Kỹ sư sản xuất",
+        "EngineerQuality"    => "Kỹ sư chất lượng",
+        "QC"                 => "QC",
+        "Operator"           => "Vận hành",
+        "Engineer"           => "Kỹ sư (vai cũ)",
+        "Sys"                => "Hệ thống",
+        _                    => role ?? "",
+    };
+}

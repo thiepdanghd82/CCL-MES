@@ -5176,6 +5176,53 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .accounts-table col.acc-col-last     { width: 170px; }
 .accounts-table col.acc-col-actions  { width: auto; }
 
+/* ── Bảng phân quyền trong tab Quản lý tài khoản (2026-09-15) ───────
+   8 cột tick + cột đếm được THÊM vào bảng sẵn có; không cột nào bị bỏ.
+   Bảng vì thế rất rộng — .audit-table-wrap đã có overflow-x nên trang
+   không bao giờ tràn ngang (luật S9). */
+.accounts-table { min-width: 2100px; }
+.accounts-table col.acc-col-perm      { width: 92px; }
+.accounts-table col.acc-col-permcount { width: 80px; }
+
+.accounts-table th.acc-perm-th { text-align: center; font-size: var(--fs-xs); }
+.accounts-table td.acc-perm-td { text-align: center; }
+.accounts-table td.acc-perm-count {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--fw-semibold);
+}
+
+/* Ô tick nhỏ hơn vùng chạm chuẩn là CỐ Ý: bảng này chỉ Admin dùng trên máy
+   văn phòng, không phải ô OK/NG cho người đeo găng bấm trên chuyền. */
+.acc-perm-box { width: 18px; height: 18px; cursor: pointer; }
+.acc-perm-box:disabled { cursor: not-allowed; opacity: .55; }
+
+/* Ô đã bị chỉnh riêng phải NHÌN RA NGAY: "đang theo vai" và "admin đã tick"
+   cho ra cùng một dấu tick, nhưng khác hẳn nhau khi truy trách nhiệm. */
+.acc-perm-box.is-override { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.acc-perm-total td { background: var(--c-divider); font-weight: var(--fw-semibold); }
+.acc-perm-total td.acc-perm-td { font-variant-numeric: tabular-nums; }
+
+.acc-permbar {
+    display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center;
+    justify-content: space-between;
+    margin: var(--sp-3) 0;
+    padding: var(--sp-3);
+    border: 1px solid var(--c-line);
+    border-left: 3px solid var(--brand);
+    border-radius: var(--r-sm);
+    background: var(--c-surface-2);
+}
+.acc-permbar-facts { display: flex; flex-wrap: wrap; gap: var(--sp-4); font-size: var(--fs-sm); }
+.acc-permbar-user  { font-weight: var(--fw-semibold); }
+.acc-permbar-lockrow { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.acc-permbar-pwd   { min-width: 14rem; min-height: var(--d-tap); }
+.acc-permbar-locked { color: var(--ng-ink); font-weight: var(--fw-semibold); font-size: var(--fs-sm); }
+.acc-permbar-open   { color: var(--ok-ink); font-weight: var(--fw-semibold); font-size: var(--fs-sm);
+                      display: flex; gap: var(--sp-2); align-items: center; }
+
+
 .acc-inline {
     padding: 4px 6px;
     font-size: var(--fs-xs);

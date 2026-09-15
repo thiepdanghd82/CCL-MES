@@ -53,4 +53,40 @@ public class User : BaseEntity
     /// trong Settings → Account Control → user edit form.
     /// </summary>
     public string? Department { get; set; }
+    // ── Quyền RIÊNG từng người (Thiệp chốt 2026-09-15) ──────────────
+    //
+    // NULL = "theo vai trò" — đây là điểm mấu chốt: migration thêm 8 cột này
+    // KHÔNG đổi hành vi của bất kỳ ai, vì mọi dòng cũ đều NULL và vẫn suy ra
+    // quyền từ vai như trước. Cờ chỉ có nghĩa khi admin tick tường minh.
+    //
+    // Vì sao 8 cột tường minh chứ không một số nguyên bitmask: hồ sơ phân quyền
+    // phải ĐỌC ĐƯỢC bằng SQL khi khách audit hỏi "ai được duyệt QC tháng 3".
+    // Bitmask tiết kiệm vài byte và trả giá bằng việc không ai tra nổi.
+    //
+    // Mã cột giữ tiếng Anh vì nó là GIÁ TRỊ trong claim và trong wire format.
+
+    /// <summary>Xem dữ liệu.</summary>
+    public bool? PermViewData { get; set; }
+
+    /// <summary>Nhập / sửa dữ liệu.</summary>
+    public bool? PermEditData { get; set; }
+
+    /// <summary>Phê duyệt QC.</summary>
+    public bool? PermApproveQc { get; set; }
+
+    /// <summary>Phê duyệt sản xuất.</summary>
+    public bool? PermApproveProduction { get; set; }
+
+    /// <summary>Phê duyệt đặc biệt (nhận vật tư/hàng không đạt).</summary>
+    public bool? PermSpecialAccept { get; set; }
+
+    /// <summary>Xuất báo cáo.</summary>
+    public bool? PermExportReport { get; set; }
+
+    /// <summary>Quản lý người dùng.</summary>
+    public bool? PermManageUsers { get; set; }
+
+    /// <summary>Cấu hình hệ thống.</summary>
+    public bool? PermSystemConfig { get; set; }
+
 }

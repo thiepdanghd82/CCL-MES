@@ -309,6 +309,113 @@ public sealed class AccountControlService
         CreatedAtUtc = u.CreatedAt,
         UpdatedAtUtc = u.UpdatedAt,
     };
+
+    // ── Bảng phân quyền (Thiệp chốt 2026-09-15) ─────────────────────
+
+    /// <summary>
+    /// Dựng bảng phân quyền: mỗi người một dòng, mỗi quyền một cột.
+    ///
+    /// <para>Trả CẢ HAI lớp — <c>Effective</c> (quyền thật sự) và
+    /// <c>Explicit</c> (admin đã tick tường minh). Giao diện cần phân biệt
+    /// "đang theo vai" với "đã bị chỉnh riêng": trên màn hình chúng trông
+    /// giống nhau, nhưng khi truy trách nhiệm thì khác hẳn.</para>
+    /// </summary>
+    public async Task<PermissionMatrixView> PermissionMatrixAsync(
+        string currentUsername, string currentRole, CancellationToken ct)
+    {
+        var users = await _db.Users.AsNoTracking()
+            .OrderBy(u => u.Role == UserRole.Admin ? 0 : 1)
+            .ThenBy(u => u.Username)
+            .ToListAsync(ct);
+
+        var rows = new List<PermissionMatrixRow>(users.Count);
+        var totals = UserPermission.All.ToDictionary(x => x, _ => 0);
+
+        foreach (var u in users)
+        {
+            var eff = new Dictionary<string, bool>();
+            var exp = new Dictionary<string, bool>();
+            var granted = 0;
+
+            foreach (var perm in UserPermission.All)
+            {
+                var flag = ExplicitFlag(u, perm);
+                if (flag is { } f) exp[perm] = f;
+
+                var value = UserPermission.Effective(u.Role, perm, flag);
+                eff[perm] = value;
+                if (value) { granted++; totals[perm]++; }
+            }
+
+            rows.Add(new PermissionMatrixRow
+            {
+                UserId = u.Id, Username = u.Username, DisplayName = u.DisplayName ?? "",
+                Role = u.Role, Department = u.Department, IsActive = u.IsActive,
+                Effective = eff, Explicit = exp, GrantedCount = granted,
+            });
+        }
+
+        return new PermissionMatrixView
+        {
+            Permissions = UserPermission.All,
+            Rows = rows,
+            Totals = totals,
+            CurrentUsername = currentUsername,
+            CurrentRole = currentRole,
+            CanEdit = string.Equals(currentRole, UserRole.Admin, StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    /// <summary>Ghi cờ quyền riêng. <c>null</c> = trả về "theo vai".</summary>
+    public async Task<AccountMutationResult> SetPermissionsAsync(
+        long id, IReadOnlyDictionary<string, bool?> perms, CancellationToken ct)
+    {
+        var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (u is null) return AccountMutationResult.Failed(AccountResult.NotFound);
+
+        // Tài khoản hệ thống được bảo vệ ở MỌI đường mutation (P10.7a-2.1).
+        if (UserRole.IsSystemAccount(u.Role))
+            return AccountMutationResult.Failed(AccountResult.SysAccountProtected);
+
+        foreach (var key in perms.Keys)
+            if (!UserPermission.All.Contains(key))
+                return AccountMutationResult.Failed(AccountResult.InvalidBody);
+
+        foreach (var (key, value) in perms)
+            ApplyFlag(u, key, value);
+
+        u.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return AccountMutationResult.Success(ToDto(u));
+    }
+
+    private static bool? ExplicitFlag(User u, string perm) => perm switch
+    {
+        UserPermission.ViewData          => u.PermViewData,
+        UserPermission.EditData          => u.PermEditData,
+        UserPermission.ApproveQc         => u.PermApproveQc,
+        UserPermission.ApproveProduction => u.PermApproveProduction,
+        UserPermission.SpecialAccept     => u.PermSpecialAccept,
+        UserPermission.ExportReport      => u.PermExportReport,
+        UserPermission.ManageUsers       => u.PermManageUsers,
+        UserPermission.SystemConfig      => u.PermSystemConfig,
+        _ => null,
+    };
+
+    private static void ApplyFlag(User u, string perm, bool? v)
+    {
+        switch (perm)
+        {
+            case UserPermission.ViewData:          u.PermViewData = v; break;
+            case UserPermission.EditData:          u.PermEditData = v; break;
+            case UserPermission.ApproveQc:         u.PermApproveQc = v; break;
+            case UserPermission.ApproveProduction: u.PermApproveProduction = v; break;
+            case UserPermission.SpecialAccept:     u.PermSpecialAccept = v; break;
+            case UserPermission.ExportReport:      u.PermExportReport = v; break;
+            case UserPermission.ManageUsers:       u.PermManageUsers = v; break;
+            case UserPermission.SystemConfig:      u.PermSystemConfig = v; break;
+        }
+    }
 }
 
 /// <summary>P10.6c — discriminator for the 5 admin-account mutations.

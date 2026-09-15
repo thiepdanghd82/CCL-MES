@@ -68,6 +68,53 @@
         <div class="settings-form-error">@_actionError</div>
     }
 
+@* ── Khối phân quyền: ai đang mở máy, và bảng có đang KHOÁ không ──
+       Mặc định KHOÁ. Mở khoá phải gõ lại mật khẩu CỦA CHÍNH ADMIN — không dùng
+       "mã xác thực" dùng chung, vì mã dùng chung là bí mật ai cũng biết, và
+       không truy được ai đã mở. Dùng lại đúng đường ký của IPQC: cùng hãm
+       thử-sai, cùng mã lỗi chung, mật khẩu không bao giờ vào audit. *@
+    @if (_matrix is not null)
+    {
+        <div class="acc-permbar" data-testid="acc-permbar">
+            <div class="acc-permbar-facts">
+                <span><b>@T("accounts.perm.currentuser"):</b> <span class="acc-permbar-user">@_matrix.CurrentUsername</span></span>
+                <span><b>@T("accounts.perm.currentrole"):</b> @AccountRoleOptions.Label(_matrix.CurrentRole)</span>
+            </div>
+            @if (!_matrix.CanEdit)
+            {
+                <div class="acc-permbar-locked" data-testid="acc-permbar-norole">@T("accounts.perm.adminonly")</div>
+            }
+            else if (_permUnlocked)
+            {
+                <div class="acc-permbar-open" data-testid="acc-permbar-open">
+                    @T("accounts.perm.unlocked")
+                    <button type="button" class="audit-copy-btn" @onclick="LockPerms"
+                            data-testid="acc-perm-lock">@T("accounts.perm.lock")</button>
+                </div>
+            }
+            else
+            {
+                <div class="acc-permbar-lockrow">
+                    <span class="acc-permbar-locked" data-testid="acc-permbar-locked">@T("accounts.perm.locked")</span>
+                    <input type="password" class="modal-input acc-permbar-pwd"
+                           value="@_permPwd" autocomplete="off"
+                           placeholder="@T("accounts.perm.authcode.ph")"
+                           aria-label="@T("accounts.perm.authcode.ph")"
+                           data-testid="acc-perm-pwd"
+                           @oninput="(e) => _permPwd = e.Value?.ToString()" />
+                    <button type="button" class="audit-copy-btn"
+                            disabled="@(string.IsNullOrEmpty(_permPwd) || _busyPerm)"
+                            @onclick="UnlockPermsAsync"
+                            data-testid="acc-perm-unlock">@T("accounts.perm.unlock")</button>
+                </div>
+            }
+        </div>
+        @if (_permError is not null)
+        {
+            <div class="settings-form-error" data-testid="acc-perm-error">@_permError</div>
+        }
+    }
+
     @if (_loading)
     {
         <p class="settings-form-help">@T("accounts.loading")</p>
@@ -88,6 +135,11 @@
                     <col class="acc-col-active"   />
                     <col class="acc-col-must"     />
                     <col class="acc-col-last"     />
+@foreach (var perm in PermKeys)
+                    {
+                        <col class="acc-col-perm" />
+                    }
+                    <col class="acc-col-permcount" />
                     <col class="acc-col-actions"  />
                 </colgroup>
                 <thead>
@@ -99,6 +151,11 @@
                         <th>@T("accounts.col.status")</th>
                         <th>@T("accounts.col.changepw")</th>
                         <th>@T("accounts.col.lastlogin")</th>
+@foreach (var perm in PermKeys)
+                        {
+                            <th class="acc-perm-th">@T($"accounts.perm.{perm.ToLowerInvariant()}")</th>
+                        }
+                        <th class="acc-perm-th">@T("accounts.perm.count")</th>
                         <th>@T("accounts.col.actions")</th>
                     </tr>
                 </thead>
@@ -120,7 +177,7 @@
                                         @onchange="@(e => OnEditRole(u.Id, e.Value?.ToString() ?? u.Role))">
                                     @foreach (var r in Roles)
                                     {
-                                        <option value="@r">@r</option>
+                                        <option value="@r">@AccountRoleOptions.Label(r)</option>
                                     }
                                 </select>
                             </td>
@@ -141,6 +198,20 @@
                             </td>
                             <td>@(u.MustChangePassword ? "✓" : "—")</td>
                             <td class="audit-mono">@(u.LastLoginAtUtc?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "—")</td>
+@foreach (var perm in PermKeys)
+                            {
+                                var on   = Eff(u.Id, perm);
+                                var over = IsOverridden(u.Id, perm);
+                                <td class="acc-perm-td">
+                                    <input type="checkbox" class="acc-perm-box @(over ? "is-override" : "")"
+                                           checked="@on"
+                                           disabled="@(!_permUnlocked || _busyPerm)"
+                                           title="@(over ? T("accounts.perm.overridden") : T("accounts.perm.byrole"))"
+                                           data-testid="@($"acc-perm-{u.Username}-{perm}")"
+                                           @onchange="@(e => OnTogglePermAsync(u.Id, perm, (bool?)e.Value == true))" />
+                                </td>
+                            }
+                            <td class="acc-perm-count" data-testid="@($"acc-permcount-{u.Username}")">@PermCount(u.Id)</td>
                             <td>
                                 <div class="acc-actions">
                                     <button type="button" class="audit-copy-btn"
@@ -169,6 +240,20 @@
                         </tr>
                     }
                 </tbody>
+                @if (_matrix is not null)
+                {
+                    <tfoot>
+                        <tr class="acc-perm-total">
+                            <td colspan="8">@T("accounts.perm.total")</td>
+                            @foreach (var perm in PermKeys)
+                            {
+                                <td class="acc-perm-td" data-testid="@($"acc-permtotal-{perm}")">@Total(perm)</td>
+                            }
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                }
             </table>
         </div>
 
@@ -206,7 +291,7 @@
                     <select class="modal-input" @bind="_newRole">
                         @foreach (var r in Roles)
                         {
-                            <option value="@r">@r</option>
+                            <option value="@r">@AccountRoleOptions.Label(r)</option>
                         }
                     </select>
                 </div>
@@ -269,8 +354,98 @@
 
 @code {
     private const int PageSize = 50;
-    private static readonly string[] Roles =
-        new[] { "Admin", "Supervisor", "Engineer", "Qc", "Operator" };
+    // 2026-09-15 — mảng gõ tay cũ ghi "Qc" trong khi DB lưu "QC" ⇒ <select>
+    // không khớp option nào và hiện TRẮNG (user `qc` trông như chưa gán vai).
+    // Dùng danh sách chuẩn ở Shared, có test khoá với UserRole.All.
+    private static IReadOnlyList<string> Roles => AccountRoleOptions.All;
+
+    // ── Bảng phân quyền (2026-09-15) ────────────────────────────────
+    private PermissionMatrixView? _matrix;
+    private bool _permUnlocked;          // mặc định KHOÁ
+    private string? _permPwd;            // mật khẩu admin, xoá ngay sau khi dùng
+    private string? _permError;
+    private bool _busyPerm;
+
+    private static IReadOnlyList<string> PermKeys => PermissionKeys;
+    private static readonly string[] PermissionKeys =
+    {
+        "ViewData", "EditData", "ApproveQc", "ApproveProduction",
+        "SpecialAccept", "ExportReport", "ManageUsers", "SystemConfig",
+    };
+
+    private PermissionMatrixRow? Row(long id) =>
+        _matrix?.Rows.FirstOrDefault(r => r.UserId == id);
+
+    private bool Eff(long id, string perm) =>
+        Row(id)?.Effective.TryGetValue(perm, out var v) == true && v;
+
+    /// <summary>Quyền này đã bị admin tick tường minh (khác mặc định của vai).
+    /// Giao diện tô khác để phân biệt "đang theo vai" với "đã chỉnh riêng" —
+    /// hai thứ trông giống nhau nhưng khác hẳn khi truy trách nhiệm.</summary>
+    private bool IsOverridden(long id, string perm) =>
+        Row(id)?.Explicit.ContainsKey(perm) == true;
+
+    private int PermCount(long id) => Row(id)?.GrantedCount ?? 0;
+    private int Total(string perm) =>
+        _matrix?.Totals.TryGetValue(perm, out var t) == true ? t : 0;
+
+    private void LockPerms()
+    {
+        _permUnlocked = false;
+        _permPwd = null;     // máy dùng chung: không để mật khẩu nằm lại
+        _permError = null;
+    }
+
+    /// <summary>Mở khoá = thử ký một lần với danh sách quyền RỖNG. Không ghi gì,
+    /// nhưng đi đúng đường xác thực thật — nên hãm thử-sai và audit từ chối đều
+    /// áp dụng y như lúc sửa thật.</summary>
+    private async Task UnlockPermsAsync()
+    {
+        if (string.IsNullOrEmpty(_permPwd) || _matrix is null) return;
+        _busyPerm = true; _permError = null;
+        try
+        {
+            var me = _matrix.Rows.FirstOrDefault(r =>
+                string.Equals(r.Username, _matrix.CurrentUsername, StringComparison.OrdinalIgnoreCase));
+            if (me is null) { _permError = T("accounts.perm.err.noself"); return; }
+
+            var resp = await Api.SetUserPermissionsAsync(me.UserId, new UpdateUserPermissionsRequest
+            {
+                Permissions = new Dictionary<string, bool?>(),   // không đổi gì
+                SignerUsername = _matrix.CurrentUsername,
+                SignerPassword = _permPwd,
+            });
+            _permUnlocked = resp.Ok;
+            if (!resp.Ok) _permError = resp.Message;
+        }
+        catch (Exception ex) { _permError = ex.Message; }
+        finally { _permPwd = null; _busyPerm = false; }   // xoá mật khẩu LUÔN
+    }
+
+    private async Task OnTogglePermAsync(long userId, string perm, bool value)
+    {
+        if (!_permUnlocked || _matrix is null) return;
+        _busyPerm = true; _permError = null;
+        try
+        {
+            var resp = await Api.SetUserPermissionsAsync(userId, new UpdateUserPermissionsRequest
+            {
+                Permissions = new Dictionary<string, bool?> { [perm] = value },
+                SignerUsername = _matrix.CurrentUsername,
+                SignerPassword = null,     // đã mở khoá trong phiên này
+            });
+            if (!resp.Ok) { _permError = resp.Message; _permUnlocked = false; }
+            await LoadMatrixAsync();
+        }
+        catch (Exception ex) { _permError = ex.Message; }
+        finally { _busyPerm = false; }
+    }
+
+    private async Task LoadMatrixAsync()
+    {
+        try { _matrix = await Api.GetPermissionMatrixAsync(); }
+        catch (Exception) { _matrix = null; }
+    }
 
     private string? _search;
     private bool _loading = true;
@@ -304,6 +479,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadMatrixAsync();
         if (AuthStateTask is not null)
         {
             var auth = await AuthStateTask;

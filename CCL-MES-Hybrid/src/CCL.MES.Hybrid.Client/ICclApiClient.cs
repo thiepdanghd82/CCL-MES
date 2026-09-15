@@ -804,6 +804,10 @@ public interface ICclApiClient
     /// <summary>Create a new account. Throws <see cref="ApiException"/>
     /// on 403, 422 (validation), or 5xx. Server flips
     /// MustChangePassword=true on every freshly-created row.</summary>
+    Task<PermissionMatrixView> GetPermissionMatrixAsync(CancellationToken ct = default);
+    Task<PermissionWriteResult> SetUserPermissionsAsync(
+        long userId, UpdateUserPermissionsRequest req, CancellationToken ct = default);
+
     Task<AccountDto> CreateAccountAsync(CreateAccountRequest req, CancellationToken ct = default);
 
     /// <summary>Update displayName / role / department / IsActive.
