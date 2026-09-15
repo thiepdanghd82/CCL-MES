@@ -135,6 +135,7 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
     // ── POST {id}/ipqc/material-system/{bomLineIdx}/approve-divergence ──
     [HttpPost("{id:long}/ipqc/material-system/{bomLineIdx:int}/approve-divergence"),
      Authorize(Policy = "EngineerWaive")]
+    [Authorize(Policy = "CapSpecialAccept")]
     public async Task<IActionResult> ApproveDivergence(
         long id, int bomLineIdx, [FromBody] ApproveDivergenceRequest? req, CancellationToken ct = default)
     {

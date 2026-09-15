@@ -210,6 +210,7 @@ public sealed class RoutingController : ControllerBase
     // ── POST {id}/legs/{legId}/advance ─────────────────────────────
 
     [HttpPost("{id:long}/legs/{legId:long}/advance"), Authorize(Policy = "ShopFloorWrite")]
+    [Authorize(Policy = "CapEditData")]
     public async Task<IActionResult> Advance(long id, long legId, [FromBody] LegAdvanceRequest? req, CancellationToken ct = default)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";

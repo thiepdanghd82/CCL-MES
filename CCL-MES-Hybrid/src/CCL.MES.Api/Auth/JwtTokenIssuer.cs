@@ -1,3 +1,4 @@
+using CCL.MES.Domain.Auth;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -61,6 +62,23 @@ public sealed class JwtTokenIssuer
             new("department", user.Department ?? ""),
         };
 
+        // ── Quyền riêng từng người (2026-09-15) ─────────────────────────
+        // Mỗi quyền ĐANG CÓ phát ra một claim `perm`. Quyền KHÔNG có thì
+        // KHÔNG có claim — policy dùng RequireClaim nên vắng mặt = bị chặn.
+        //
+        // Giá trị = `cờ riêng ?? mặc định của vai`, nên hôm nay (mọi cờ đều
+        // NULL) claim phát ra ĐÚNG BẰNG quyền của vai. Đó là lý do bật cơ chế
+        // này không đổi quyền của bất kỳ ai.
+        //
+        // Claim nằm trong access token (~15 phút). Đổi quyền có hiệu lực khi
+        // token mới được cấp — nên AccountControlService THU HỒI refresh token
+        // của người bị đổi quyền, buộc đăng nhập lại ngay.
+        foreach (var perm in UserPermission.All)
+        {
+            if (UserPermission.Effective(user.Role, perm, ExplicitPerm(user, perm)))
+                claims.Add(new Claim("perm", perm));
+        }
+
         var token = new JwtSecurityToken(
             issuer: _opts.Issuer,
             audience: _opts.Audience,
@@ -87,4 +105,17 @@ public sealed class JwtTokenIssuer
             .Replace('+', '-')
             .Replace('/', '_');
     }
+
+    private static bool? ExplicitPerm(User u, string perm) => perm switch
+    {
+        UserPermission.ViewData          => u.PermViewData,
+        UserPermission.EditData          => u.PermEditData,
+        UserPermission.ApproveQc         => u.PermApproveQc,
+        UserPermission.ApproveProduction => u.PermApproveProduction,
+        UserPermission.SpecialAccept     => u.PermSpecialAccept,
+        UserPermission.ExportReport      => u.PermExportReport,
+        UserPermission.ManageUsers       => u.PermManageUsers,
+        UserPermission.SystemConfig      => u.PermSystemConfig,
+        _ => null,
+    };
 }

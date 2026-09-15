@@ -118,6 +118,7 @@ public sealed class PrepressController : WoMutationControllerBase
     [HttpPut("{id:long}/materials/{bomLineIdx:int}")]
 
     [Authorize(Policy = "ShopFloorWrite")]
+    [Authorize(Policy = "CapEditData")]
     public async Task<IActionResult> PutMaterial(
         long id, int bomLineIdx, [FromBody] SetPrepressMaterialRequest? req)
     {
@@ -238,14 +239,19 @@ public sealed class PrepressController : WoMutationControllerBase
 
     [HttpPost("{id:long}/materials/{bomLineIdx:int}/special-accept")]
 
-    // RBAC-OPEN: gác bằng SpecialAcceptRoles ngay trong controller (403 tường minh).
+    // RBAC-OPEN: vai gác bằng SpecialAcceptRoles ngay trong controller (403 tường minh);
+    //            quyền riêng gác bằng policy CapSpecialAccept ngay dưới đây.
     public async Task<IActionResult> SpecialAcceptMaterial(
         long id, int bomLineIdx, [FromBody] SpecialAcceptMaterialRequest? req)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
         var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
 
-        if (!SpecialAcceptRoles.Contains(role))
+        // Quyền riêng kiểm NGAY ĐÂY chứ không bằng policy: policy chặn trước thì
+        // nuốt mất mã lỗi cụ thể `prepress.special_accept_forbidden`, và người
+        // đứng máy chỉ còn thấy "không có quyền" chung chung.
+        if (!User.HasClaim("perm", CCL.MES.Domain.Auth.UserPermission.SpecialAccept)
+            || !SpecialAcceptRoles.Contains(role))
             return StatusCode(StatusCodes.Status403Forbidden, ApiError.Of(
                 "prepress.special_accept_forbidden",
                 "Only a PD leader (Engineer) or Supervisor can special-accept a material."));

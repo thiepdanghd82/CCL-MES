@@ -322,6 +322,7 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     [HttpPost("{id:long}/run/qty")]
 
     [Authorize(Policy = "ShopFloorWrite")]
+    [Authorize(Policy = "CapEditData")]
     public async Task<IActionResult> PostRunQty(
         long id, [FromBody] RunQtyAddRequest? req)
     {
@@ -509,6 +510,7 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     [HttpPost("{id:long}/run/finish")]
 
     [Authorize(Policy = "ShopFloorWrite")]
+    [Authorize(Policy = "CapEditData")]
     public async Task<IActionResult> PostRunFinish(
         long id, [FromBody] RunFinishRequest? req)
     {

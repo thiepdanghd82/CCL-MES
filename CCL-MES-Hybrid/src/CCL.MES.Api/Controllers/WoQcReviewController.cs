@@ -323,6 +323,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
     // ═══════════════════════════════════════════════════════════════
 
     [HttpPost("{id:long}/qc/fqc/judgment"), Authorize(Policy = "QcEdit")]
+    [Authorize(Policy = "CapApproveQc")]
     public async Task<IActionResult> PostFqcJudgment(
         long id, [FromBody] SubmitFqcJudgmentRequest? req)
     {
@@ -489,6 +490,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
     }
 
     [HttpPost("{id:long}/qc/oqc/approve"), Authorize(Policy = "QcEdit")]
+    [Authorize(Policy = "CapApproveQc")]
     public async Task<IActionResult> PostOqcApprove(
         long id, [FromBody] OqcApproveRequest? req)
     {

@@ -252,6 +252,7 @@ public sealed class WorkOrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:long}/advance")]
     [Authorize(Policy = "ShopFloorWrite")]
+    [Authorize(Policy = "CapEditData")]
     public async Task<ActionResult<AdvanceWorkOrderResponse>> Advance(long id)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";

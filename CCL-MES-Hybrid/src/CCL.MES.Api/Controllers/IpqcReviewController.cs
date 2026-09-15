@@ -493,6 +493,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
     // ── POST /work-orders/{id}/ipqc/judgment ───────────────────────
 
     [HttpPost("{id:long}/ipqc/judgment"), Authorize(Policy = "IpqcSubmit")]
+    [Authorize(Policy = "CapApproveQc")]
     public async Task<IActionResult> PostJudgment(
         long id, [FromBody] SubmitIpqcJudgmentRequest? req)
     {
@@ -584,6 +585,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
     // ── POST /work-orders/{id}/qa/approve ──────────────────────────
 
     [HttpPost("{id:long}/qa/approve"), Authorize(Policy = "QaApprove")]
+    [Authorize(Policy = "CapApproveQc")]
     public async Task<IActionResult> PostQaApprove(
         long id, [FromBody] QaApproveRequest? req)
     {

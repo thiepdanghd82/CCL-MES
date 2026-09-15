@@ -386,6 +386,12 @@ public sealed class AccountControlService
 
         u.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        // Quyền nằm trong claim của access token (~15 phút). Không thu hồi thì
+        // người vừa bị RÚT quyền vẫn dùng được tới khi token hết hạn — tức lệnh
+        // rút quyền có độ trễ, đúng lúc người ta cần nó hiệu lực ngay.
+        _refreshStore.RevokeAllForUser(u.Id);
+
         return AccountMutationResult.Success(ToDto(u));
     }
 

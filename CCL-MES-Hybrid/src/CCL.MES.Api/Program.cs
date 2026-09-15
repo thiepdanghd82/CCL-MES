@@ -436,6 +436,24 @@ builder.Services.AddAuthorization(o =>
             UserRole.EngineerProduction, UserRole.EngineerQuality, UserRole.Engineer,
             UserRole.Qc, UserRole.Operator));
 
+    // ── 8 policy NĂNG LỰC, lái bằng claim `perm` (2026-09-15) ──────────
+    //
+    // Áp THÊM bên cạnh policy vai, KHÔNG thay thế. Endpoint đòi CẢ HAI:
+    // vai cho phép VÀ quyền riêng bật. Hệ quả cố ý:
+    //
+    //   · tick TẮT một ô ⇒ người đó mất quyền ngay (có hiệu lực, hữu ích)
+    //   · tick BẬT vượt vai ⇒ KHÔNG cấp thêm gì, vì policy vai vẫn chặn
+    //
+    // Chọn chiều này vì tick nhầm chỉ làm ai đó MẤT quyền — thấy ngay, sửa
+    // ngay. Chiều ngược lại tick nhầm thì không ai biết cho tới khi có sự cố.
+    // Giao diện không cho tick vượt vai, nên bảng không nói dối.
+    //
+    // Claim chỉ phát ra khi ĐANG CÓ quyền, nên RequireClaim = vắng mặt là chặn.
+    foreach (var cap in CCL.MES.Domain.Auth.UserPermission.All)
+        o.AddPolicy($"Cap{cap}", p => p
+            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireClaim("perm", cap));
+
     o.AddPolicy("QcPlanWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor,
@@ -599,6 +617,31 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<CCL.MES.Api.Observability.RequestObservabilityMiddleware>();
 
 app.UseRouting();
+// 2026-09-15 — policy từ chối trả 403 với THÂN RỖNG. Giao diện khi ấy không
+// có gì để hiện, giống hệt bệnh "Unknown error code" của L92: người dùng bị
+// chặn mà không biết vì sao, và không biết phải nhờ ai.
+//
+// Đặt TRƯỚC UseAuthorization để bọc được cả 401 lẫn 403 nó phát ra. Chỉ đụng
+// phản hồi CHƯA CÓ thân — không ghi đè ApiError mà controller đã tự trả.
+app.Use(async (ctx, next) =>
+{
+    await next();
+    if ((ctx.Response.StatusCode is StatusCodes.Status401Unauthorized
+                                  or StatusCodes.Status403Forbidden)
+        && !ctx.Response.HasStarted
+        && ctx.Response.ContentLength is null or 0
+        && ctx.Request.Path.StartsWithSegments("/api"))
+    {
+        var code = ctx.Response.StatusCode == StatusCodes.Status401Unauthorized
+            ? "auth.unauthenticated" : "auth.forbidden";
+        var msg = ctx.Response.StatusCode == StatusCodes.Status401Unauthorized
+            ? "Chưa đăng nhập hoặc phiên đã hết hạn — đăng nhập lại."
+            : "Tài khoản của bạn không có quyền làm việc này. Nhờ quản trị cấp quyền, hoặc nhờ người có quyền thực hiện.";
+        ctx.Response.ContentType = "application/json; charset=utf-8";
+        await ctx.Response.WriteAsJsonAsync(CCL.MES.Shared.Envelopes.ApiError.Of(code, msg));
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

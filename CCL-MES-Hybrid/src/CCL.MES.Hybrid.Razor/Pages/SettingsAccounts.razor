@@ -205,8 +205,8 @@
                                 <td class="acc-perm-td">
                                     <input type="checkbox" class="acc-perm-box @(over ? "is-override" : "")"
                                            checked="@on"
-                                           disabled="@(!_permUnlocked || _busyPerm)"
-                                           title="@(over ? T("accounts.perm.overridden") : T("accounts.perm.byrole"))"
+                                           disabled="@(!_permUnlocked || _busyPerm || (!on && !ByRole(u.Role, perm)))"
+                                           title="@TickTitle(u.Role, perm, on, over)"
                                            data-testid="@($"acc-perm-{u.Username}-{perm}")"
                                            @onchange="@(e => OnTogglePermAsync(u.Id, perm, (bool?)e.Value == true))" />
                                 </td>
@@ -384,6 +384,26 @@
     /// hai thứ trông giống nhau nhưng khác hẳn khi truy trách nhiệm.</summary>
     private bool IsOverridden(long id, string perm) =>
         Row(id)?.Explicit.ContainsKey(perm) == true;
+
+    /// <summary>Vai của người này có quyền ấy theo mặc định không.
+    /// Suy NGƯỢC từ dữ liệu server trả về: quyền đang có mà KHÔNG phải do tick
+    /// riêng ⇒ chính là mặc định của vai.</summary>
+    private bool ByRole(string role, string perm)
+    {
+        var r = _matrix?.Rows.FirstOrDefault(x => x.Role == role);
+        if (r is null) return false;
+        if (!r.Explicit.ContainsKey(perm)) return r.Effective[perm];
+        // Người này đã bị chỉnh riêng — hỏi một người khác cùng vai chưa bị chỉnh.
+        var clean = _matrix!.Rows.FirstOrDefault(x => x.Role == role && !x.Explicit.ContainsKey(perm));
+        return clean is not null && clean.Effective[perm];
+    }
+
+    /// <summary>Chú giải khi rê chuột — phải nói ĐƯỢC LÀM GÌ, không mô tả trạng thái.</summary>
+    private string TickTitle(string role, string perm, bool on, bool over)
+    {
+        if (!on && !ByRole(role, perm)) return T("accounts.perm.aboverole");
+        return over ? T("accounts.perm.overridden") : T("accounts.perm.byrole");
+    }
 
     private int PermCount(long id) => Row(id)?.GrantedCount ?? 0;
     private int Total(string perm) =>

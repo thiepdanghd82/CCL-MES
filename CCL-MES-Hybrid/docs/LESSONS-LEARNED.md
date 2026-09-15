@@ -1212,6 +1212,18 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Câu tiếng Anh cuối cùng nằm ngoài tầm mọi phép quét** | `WorkOrders.razor:741` dựng câu "WO number … not found" **thẳng trong Razor**, không qua localiser — nên mọi lần quét localiser đều báo sạch. Chỉ một test đỏ mới lôi nó ra. Sửa xong lại trúng gate `i18n-parity`: chuỗi tiếng Việt **trần** trong `.razor` là vi phạm — bản tiếng Anh cũ lọt suốt vì gate ấy chỉ đếm chuỗi **tiếng Việt** trần. Đưa vào `TranslationCatalog` với `{0}` mới đúng. |
 | **Cơ chế chặn tái phát** | `gate-error-code-localised` ratchet baseline 0, phép đếm đã sửa. Kiểm chứng bằng tiêm: thêm một câu tiếng Anh → gate đỏ; phục hồi → xanh. **Luật rút ra: một ratchet đo bằng heuristic phải được kiểm bằng mắt ít nhất một lần trên dữ liệu thật. Câu hỏi đúng không phải "con số có giảm không" mà "con số này đang đếm cái gì".** Và: hai gate cùng canh một chủ đề vẫn để lọt, nếu mỗi cái chỉ soi một nửa (localiser vs `.razor`, tiếng Anh vs tiếng Việt). |
 
+### L98 — nối quyền vào tầng policy: rủi ro không phải quên chặn, mà là chặn nhầm tất cả
+
+| | |
+|---|---|
+| **Bối cảnh** | Nối 8 quyền riêng từng người vào tầng policy. Claim `perm` phát ra từ `cờ riêng ?? mặc định của vai`, nên khi chưa ai tick gì thì quyền phải y hệt hôm qua. |
+| **Sai lầm đắt nhất, may là test bắt** | Tôi map `WorkOrders.Advance` → `ApproveProduction`. **24 test đỏ ngay.** Vì `advance` là **chuyển bước trên chuyền** — kỹ sư và vận hành đều làm — chứ không phải "phê duyệt sản xuất". Chính bảng Thiệp đưa cũng ghi `engineer` KHÔNG có quyền phê duyệt sản xuất, mà kỹ sư thì vẫn phải chuyển bước được. **Ánh xạ endpoint → năng lực là phán đoán NGHIỆP VỤ, không phải khớp tên.** Map lại sang `EditData`. |
+| **Policy chặn trước thì NUỐT mã lỗi cụ thể** | `SpecialAcceptMaterial` vốn tự kiểm vai và trả `prepress.special_accept_forbidden` — một câu nói rõ phải nhờ ai. Thêm `[Authorize(Policy="CapSpecialAccept")]` khiến policy chặn TRƯỚC, và người đứng máy chỉ còn thấy "không có quyền" chung chung. Sửa: kiểm claim **ngay trong controller** cạnh chốt vai, giữ nguyên mã lỗi cụ thể. **Thêm một lớp gác ở tầng cao hơn có thể làm CHẤT LƯỢNG thông báo tụt xuống.** |
+| **403 của policy có thân RỖNG** | Mọi policy từ chối đều trả 403 không nội dung — giao diện không có gì để hiện, đúng họ với "Unknown error code" của L92. Thêm middleware: 401/403 trên đường `/api` luôn có thân `ApiError`, và **chỉ đụng phản hồi chưa có thân** nên không ghi đè `ApiError` mà controller đã tự trả. Kiểm qua wire thật, không chỉ qua test. |
+| **Chọn AND thay vì thay thế** | Endpoint đòi **vai cho phép VÀ quyền riêng bật**. Tick TẮT có hiệu lực ngay; tick BẬT vượt vai không cấp thêm gì. Chọn chiều này vì tick nhầm chỉ làm ai đó **mất** quyền — thấy ngay, sửa ngay; chiều ngược lại tick nhầm thì không ai biết cho tới khi có sự cố. Giao diện **không cho tick vượt vai** kèm câu giải thích, nên bảng không nói dối về thứ nó không làm được. |
+| **Quyền nằm trong token nên phải thu hồi** | Claim sống trong access token (~15 phút). Không thu hồi refresh token thì lệnh **rút quyền** có độ trễ — đúng lúc người ta cần nó hiệu lực ngay. `SetPermissionsAsync` gọi `RevokeAllForUser`, buộc đăng nhập lại. |
+| **Cơ chế chặn tái phát** | 8 test `CapabilityPolicyWireTests`, trọng tâm là **bật cơ chế không đổi quyền của ai**: mỗi vai vốn qua được cổng thì vẫn qua, vốn bị chặn thì vẫn chặn. Kiểm chứng bằng tiêm: tính claim sai (bỏ mặc định vai) → **5 test đỏ**, đúng kịch bản "cả xưởng mất quyền giữa ca"; bỏ policy khỏi phán định IPQC → test "tắt quyền phải có hiệu lực" đỏ. **Luật rút ra: khi thêm một tầng gác lên hệ đang chạy, test phải chứng minh cái KHÔNG ĐỔI trước khi chứng minh cái mới.** |
+
 ----
 
 ## Adding a new lesson

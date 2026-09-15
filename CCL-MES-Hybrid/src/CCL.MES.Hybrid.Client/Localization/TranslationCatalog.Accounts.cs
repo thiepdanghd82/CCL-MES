@@ -45,6 +45,7 @@ public sealed partial class TranslationCatalog
         Add("accounts.perm.authcode.ph",       "Mật khẩu admin để mở khoá",   "Admin password to unlock");
         Add("accounts.perm.adminonly",         "Chỉ Admin mới sửa được phân quyền.", "Only an Admin can change permissions.");
         Add("accounts.perm.byrole",            "Đang theo vai trò",           "Inherited from role");
+        Add("accounts.perm.aboverole",         "Vai trò này không có quyền ấy — đổi vai trò nếu muốn cấp. Bảng chỉ thu hẹp được, không nới rộng.", "The role does not grant this — change the role to grant it. This table can only restrict, never widen.");
         Add("accounts.perm.overridden",        "Đã chỉnh riêng cho người này", "Overridden for this user");
         Add("accounts.perm.err.noself",        "Không thấy tài khoản của bạn trong bảng — nạp lại trang.", "Your own account is missing from the table — reload the page.");
 

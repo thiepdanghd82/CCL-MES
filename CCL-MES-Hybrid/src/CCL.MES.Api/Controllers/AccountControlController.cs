@@ -51,6 +51,7 @@ namespace CCL.MES.Api.Controllers;
 [ApiController]
 [Route(ApiVersion.Prefix + "/admin/users")]
 [Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "CapManageUsers")]
 public sealed class AccountControlController : ControllerBase
 {
     private readonly AccountControlService _svc;
