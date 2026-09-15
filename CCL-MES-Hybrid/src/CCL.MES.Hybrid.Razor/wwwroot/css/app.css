@@ -4483,7 +4483,31 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
    screens; data-grid pages use the available width up to a sane
    reading limit. */
 .settings-form-card.is-wide {
-    max-width: min(1600px, calc(100vw - 320px));
+    /* 2026-09-15 — trừ HAI LẦN cho cùng một thanh điều hướng.
+       Công thức cũ `min(1600px, calc(100vw - 320px))` lấy bề rộng CỬA SỔ rồi tự
+       trừ 320px "chừa chỗ sidebar". Nhưng thẻ này nằm trong `.app-content`, mà
+       `.app-content` đã nằm bên phải sidebar rồi — chỗ ấy đã được trừ một lần.
+       Đo ở cửa sổ 1600px: thẻ bị kẹp còn 1280px, bỏ trống 250px bên phải. Khi
+       người dùng THU GỌN rail thì càng phí, vì 320px là số chết, không biết
+       rail đang rộng bao nhiêu.
+       `width:100%` tự lấy đúng bề rộng còn lại, rail rộng hay hẹp cũng đúng.
+
+       Và KHÔNG còn trần 1600px nữa (Thiệp báo trên màn 32", 2026-09-15). Trần
+       kiểu "cho dễ đọc" là luật của VĂN BẢN — mắt mỏi khi phải quét một dòng chữ
+       quá dài. Ba trang mang lớp này đều là LƯỚI DỮ LIỆU, không phải văn bản:
+       `.accounts-table` một mình đã khai `min-width: 2100px`, nên ở đúng cái
+       trần 1600 ấy bảng VẪN phải cuộn ngang 558px. Chặn bề rộng của một bảng
+       đang thiếu bề rộng là lấy đi thứ nó cần rồi bỏ trống chỗ vừa lấy: trên
+       màn 2560px là gần 1000px để không.
+
+       Bỏ trần ⇒ ở 2560px cả 17 cột hiện hết, không còn cuộn ngang.
+       Trần văn bản 480px của `.settings-form-card` (không `.is-wide`) giữ
+       nguyên — đó mới là chỗ luật dễ-đọc áp dụng.
+
+       ⚠ Phải viết `max-width: none` chứ KHÔNG được xoá dòng max-width đi. Xoá
+       thì `.is-wide` rơi về trần 480px của lớp cha và thẻ co còn 522px — tệ hơn
+       cả trước khi sửa. Đã thử và đo đúng như vậy lúc đang làm. */
+    max-width: none;
     width: 100%;
 }
 
@@ -5161,28 +5185,49 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
    Sửa hai lớp, vì nới bề rộng một mình chỉ chữa đúng bộ nhãn hôm nay:
    ① cho tiêu đề XUỐNG DÒNG thay vì cắt — ngôn ngữ nào cũng đọc được;
    ② nới ba cột chật nhất để không phải xuống ba dòng. */
-.accounts-table th {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    vertical-align: bottom;
-}
+/* ⚠ Luật xuống dòng của tiêu đề bảng này KHÔNG đặt được ở đây.
+   `ix.css` nạp SAU app.css và đã có `.audit-table th { white-space: nowrap }`
+   cùng hạng specificity — mọi rule cùng hạng viết ở app.css đều thua. Bản sửa
+   đầu tiên (2026-09-15) đặt đúng chỗ này và CHẾT LẶNG: CSS hợp lệ, gate xanh,
+   tiêu đề vẫn cắt cụt. Luật thật nằm ở `ix.css` § "Ngoại lệ: bảng phân quyền
+   tài khoản". Đừng thêm lại ở đây. */
 
-.accounts-table col.acc-col-username { width: 160px; }
-.accounts-table col.acc-col-display  { width: 200px; }
-.accounts-table col.acc-col-role     { width: 130px; }
-.accounts-table col.acc-col-dept     { width: 130px; }
-.accounts-table col.acc-col-active   { width: 110px; }
-.accounts-table col.acc-col-must     { width: 110px; }
-.accounts-table col.acc-col-last     { width: 170px; }
-.accounts-table col.acc-col-actions  { width: auto; }
+/* Bề rộng cột chữ tính bằng `em`, KHÔNG phải px (2026-09-15).
+
+   px là số mù với density: `.audit-table` đặt `font-size: var(--d-font)`, nên
+   sang `shopfloor` chữ nhảy 14px → 16px (×1,143) trong khi cột đứng yên. Đo
+   thật ở shopfloor: cột Trạng thái cần 147px mà chỉ có 140, cột Đăng nhập gần
+   nhất cần 186px mà chỉ có 170 ⇒ cắt chữ, đúng cái lỗi vừa sửa xong quay lại ở
+   density kia. `em` ở đây ăn theo font của chính bảng nên hai density tự khớp.
+
+   Quy đổi từ số px cũ ở mốc 14px: 160→11.5em · 200→14.5em · 130→9.5em ·
+   110→8em · 170→12.5em. Hai cột từng bị cắt được nới thêm chút: Trạng thái
+   10.5em (chip "Đang hoạt động" là pill, không xuống dòng được), Đăng nhập gần
+   nhất 12.5em. */
+.accounts-table col.acc-col-username { width: 11.5em; }
+.accounts-table col.acc-col-display  { width: 14.5em; }
+.accounts-table col.acc-col-role     { width: 9.5em; }
+.accounts-table col.acc-col-dept     { width: 9.5em; }
+.accounts-table col.acc-col-active   { width: 10.5em; }
+.accounts-table col.acc-col-must     { width: 8em; }
+.accounts-table col.acc-col-last     { width: 12.5em; }
+/* KHÔNG để `auto` (2026-09-15, màn 32"). Trong `table-layout: fixed`, cột `auto`
+   duy nhất nuốt TOÀN BỘ chỗ dư: đo ở 2560px thì "Thao tác" phình 614px trong khi
+   ba cái nút chỉ cần 150px — gần 440px chết nằm một chỗ, các cột chữ vẫn chật y
+   như cũ. Cho nó bề rộng thật thì phần dư được chia cho MỌI cột theo tỷ lệ, tức
+   bảng giãn ra thay vì để trống một mảng bên phải.
+   13em = 182px ở office (nút cần 150 + 24 padding), 208px ở shopfloor. */
+.accounts-table col.acc-col-actions  { width: 13em; }
 
 /* ── Bảng phân quyền trong tab Quản lý tài khoản (2026-09-15) ───────
    8 cột tick + cột đếm được THÊM vào bảng sẵn có; không cột nào bị bỏ.
    Bảng vì thế rất rộng — .audit-table-wrap đã có overflow-x nên trang
    không bao giờ tràn ngang (luật S9). */
-.accounts-table { min-width: 2100px; }
-.accounts-table col.acc-col-perm      { width: 92px; }
-.accounts-table col.acc-col-permcount { width: 80px; }
+/* 150em = 2100px ở mốc 14px, và tự thành 2400px ở shopfloor — cùng lý do `em`
+   ở khối trên: min-width bằng px sẽ hụt đúng phần chữ to thêm. */
+.accounts-table { min-width: 150em; }
+.accounts-table col.acc-col-perm      { width: 6.6em; }
+.accounts-table col.acc-col-permcount { width: 6em; }
 
 .accounts-table th.acc-perm-th { text-align: center; font-size: var(--fs-xs); }
 .accounts-table td.acc-perm-td { text-align: center; }

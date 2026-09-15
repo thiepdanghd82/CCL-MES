@@ -649,6 +649,58 @@
     white-space: nowrap;
     vertical-align: middle;
 }
+
+/* ── Ngoại lệ: bảng phân quyền tài khoản ────────────────────────────────────
+   `nowrap` ở trên hợp lý cho lưới dữ liệu dày, NHƯNG `.accounts-table` có 8 cột
+   tick rộng 92px mang nhãn tiếng Việt dài. Gặp `table-layout: fixed` +
+   `overflow: hidden` của `.audit-table`, nowrap = CẮT CỤT trong im lặng.
+
+   Đo được 2026-09-15 ở khổ 1600px: cả 8 tiêu đề quyền đều bị cắt, và ba cột
+   "Phê duyệt QC" · "Phê duyệt sản xuất" · "Phê duyệt đặc biệt" đều hiện ra đúng
+   chữ "PHÊ DUYỆT…" — ba cột khác nghĩa nhau trông giống hệt nhau. Quản trị tick
+   nhầm ô là chuyện sớm muộn.
+
+   ⚠ Luật này BẮT BUỘC nằm ở ix.css chứ không phải app.css: ix.css nạp SAU nên
+   `.audit-table th` ở trên luôn thắng một rule cùng hạng đặt bên app.css. Đã
+   từng sửa ở app.css và tưởng xong — rule đó chết lặng, không ai biết.
+   Xuống dòng tốn thêm một dòng tiêu đề; cắt cụt tốn nghĩa. */
+.accounts-table th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: bottom;
+    line-height: 1.25;
+    /* `height` của rule trên là chiều cao TỐI THIỂU của ô bảng, nên hàng tự cao
+       thêm khi tiêu đề xuống dòng — không cần bỏ nó. */
+    padding-block: var(--sp-2);
+}
+
+/* Cột định danh DÍNH TRÁI — khuôn "cột dính" của skill cmes-design-tokens cho
+   bảng ma trận nhiều cột.
+
+   17 cột thì không khổ màn nào chứa hết: đo ở cửa sổ 1600px vẫn phải cuộn ngang
+   558px, ở tablet dọc 768px là 1390px. Cuộn ngang tự nó không sao — mất tên
+   người mới nguy: quản trị tick một ô giữa lưới mà không còn thấy đang tick cho
+   AI. Ghim cột tên đăng nhập thì cuộn bao xa cũng luôn biết mình đang ở dòng nào.
+
+   Nền phải ĐỤC: ô bảng mặc định trong suốt, để nguyên thì chữ các cột chạy
+   xuyên qua khi cuộn. z-index: ô góc (vừa dính trái vừa dính trên) phải nằm
+   trên cả hai. */
+.accounts-table th:first-child,
+.accounts-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--ix-surface);
+    border-right: var(--ix-hairline) solid var(--ix-line);
+    z-index: 1;
+}
+.accounts-table thead th:first-child {
+    background: var(--ix-surface-2);
+    z-index: 3;   /* trên cả header dính-trên lẫn thân dính-trái */
+}
+.accounts-table .acc-perm-total td:first-child {
+    background: var(--c-divider);
+    z-index: 2;
+}
 .grid td, .md-table td, .qms-table td, .audit-table td, .soh-tbl td {
     padding: 0 var(--d-pad-x);
     height: var(--d-row-h);

@@ -244,7 +244,13 @@
                 {
                     <tfoot>
                         <tr class="acc-perm-total">
-                            <td colspan="8">@T("accounts.perm.total")</td>
+                            @* 7 = số cột cố định trước nhóm tick (tên đăng nhập ·
+                               tên hiển thị · vai trò · phòng ban · trạng thái · đổi
+                               mật khẩu · đăng nhập gần nhất). Để 8 thì hàng TỔNG dài
+                               hơn hàng tiêu đề đúng một ô, và MỌI con số tổng trượt
+                               sang phải một cột — bảng vẫn đẹp nhưng nói sai hoàn
+                               toàn ai có quyền gì. Có test khoá số cột. *@
+                            <td colspan="7">@T("accounts.perm.total")</td>
                             @foreach (var perm in PermKeys)
                             {
                                 <td class="acc-perm-td" data-testid="@($"acc-permtotal-{perm}")">@Total(perm)</td>
