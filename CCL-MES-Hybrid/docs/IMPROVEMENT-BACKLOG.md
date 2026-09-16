@@ -433,7 +433,10 @@ phải `CANCELLED` — đúng quy trình đã chốt.
 **Nghiệm thu**
 - [x] 19/19 bảng có cột `WoId`/`WorkOrderId` đều có FK — **0 bảng còn thiếu**
 - [x] Chuỗi đứt đã nối; kiểm bằng **xoá thật** trên DB cô lập, 4 ca đều đúng
-- [ ] Gate mới: bảng có cột `WoId`/`WorkOrderId` mà không có FK ⇒ đỏ (ratchet) — **CHƯA LÀM**
+- [x] ~~Gate mới: bảng có cột `WoId`/`WorkOrderId` mà không có FK ⇒ đỏ~~ — **XONG**: gate 29
+      `gate-wo-child-fk.sh`, đọc `MesDbContextModelSnapshot.cs` (chạy được ở CI, không cần DB).
+      Gác CẢ HAI luật: thiếu FK ⇒ đỏ, và bằng chứng QC mà không `Restrict` ⇒ đỏ.
+      Chứng minh bằng ca THẬT: chĩa vào snapshot trước hai migration hôm nay ⇒ bắt đúng **11 bảng**.
 - [ ] Câu hỏi `purge-applied.sql` xoá `SemiLots` — **CHƯA có kết luận**, cần Henry
 
 ## Nợ kỹ thuật đã phát hiện, chưa xếp lịch

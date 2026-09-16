@@ -45,6 +45,7 @@ GATES=(
   "error-localised:gate-error-code-localised.sh:2026-09-14 mã lỗi nào cũng có câu cho người đọc — chặn \"Unknown error code\" ra màn hình"
   "endpoint-policy:gate-endpoint-policy.sh:2026-09-15 endpoint ghi phải tuyên bố phân quyền — chặn cổng mở mà không ai biết"
   "phase-label:gate-phase-label.sh:2026-09-16 token phase không được in thẳng — chặn người đứng máy phải đọc IPQC_WAIT"
+  "wo-child-fk:gate-wo-child-fk.sh:2026-09-16 bảng con WorkOrders phải có FK, bằng chứng QC phải Restrict"
 )
 
 total="${#GATES[@]}"
