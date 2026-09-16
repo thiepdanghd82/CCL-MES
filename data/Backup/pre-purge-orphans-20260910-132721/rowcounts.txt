@@ -1,0 +1,6 @@
+# Phase A — trước khi xoá 65 dòng mồ côi (WO 39/40/43, rác dev 26-27/06)  2026-09-10 13:27:21
+WoIpqcChecks=8
+WoIpqcCheckItems=151
+WoPlateChecks=17
+WoCutterChecks=17
+WorkOrders=27

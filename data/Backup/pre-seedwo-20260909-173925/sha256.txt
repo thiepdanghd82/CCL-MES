@@ -1,0 +1,1 @@
+1b05057cfc275dbfbbc1a14e8502fe5bdd951c6abfdd138cba6d2a0fc3aa3b42  /Users/thiepdt/Documents/1. CODE PROJECT/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES/data/Backup/pre-seedwo-20260909-173925/ccl_mes.db

@@ -1,0 +1,1 @@
+6947ce6cfcf61e1685ef7008a0a7bd4fe2c9165a4ea5506ec62e6d12e9304bfd  /Users/thiepdt/Documents/1. CODE PROJECT/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES/data/Backup/pre-lotsync-20260909-171221/ccl_mes.db

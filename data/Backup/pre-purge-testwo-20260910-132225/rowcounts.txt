@@ -1,0 +1,14 @@
+# Phase A — trước khi xoá WO-TEST-LOT-*  2026-09-10 13:22:26
+WorkOrders=30
+WoMaterials=103
+WoIpqcMaterialChecks=7
+WoIpqcChecks=11
+WoIpqcCheckItems=224
+WoSettingCheckItems=60
+WoPlateChecks=20
+WoCutterChecks=20
+WoTraceSnapshots=20
+WoTraceIndexes=30
+WoStatusHistories=30
+MaterialLots=4850
+AuditLogs=3364

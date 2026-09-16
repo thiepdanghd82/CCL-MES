@@ -1,0 +1,9 @@
+# Phase A baseline — 2026-09-09 17:12:21
+# trước khi chạy scripts/MaterialLotSync --commit
+MaterialLots=28
+IqcInspections=5334
+WoMaterials=82
+AuditLogs=3270
+WoIpqcMaterialChecks=5
+WoMaterialConsumptions=5
+MaterialLots_linked=0

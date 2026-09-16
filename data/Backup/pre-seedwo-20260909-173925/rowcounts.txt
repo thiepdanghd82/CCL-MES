@@ -1,0 +1,6 @@
+# Phase A — trước scripts/SeedTestWorkOrders --commit  2026-09-09 17:39:25
+WorkOrders=27
+WoMaterials=82
+WoIpqcMaterialChecks=5
+MaterialLots=4850
+AuditLogs=3271

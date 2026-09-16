@@ -1,0 +1,4 @@
+# trước khi đưa WO-TEST-LOT-* về PREPRESS  2026-09-09 17:52:25
+WorkOrders=30
+WoIpqcMaterialChecks=24
+WoMaterials=103
