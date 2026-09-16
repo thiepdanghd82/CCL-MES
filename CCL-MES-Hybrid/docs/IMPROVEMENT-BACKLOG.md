@@ -376,7 +376,7 @@ defect thật để truy). **Không vá mò vì hiện KHÔNG có gì để vá.
 
 ---
 
-## FK-SWEEP — sáu bảng nữa còn thiếu khoá ngoại về `WorkOrders` (đo 2026-09-16)
+## ~~FK-SWEEP — sáu bảng nữa còn thiếu khoá ngoại về `WorkOrders`~~ ✅ ĐÃ ĐÓNG 2026-09-16
 
 **Bối cảnh.** Đợt `AddWorkOrderChildForeignKeys` (`c4b54e3`) đóng 5 bảng, nhưng
 phát hiện ra đó không phải toàn bộ. Quét TOÀN DB — mọi bảng có cột `WoId` /
@@ -400,7 +400,7 @@ script là quét theo trí nhớ của người viết script).
 |---|---|
 | `WoIpqcCheckItems` → `WoIpqcChecks` → WO | **liền mạch** — đợt `c4b54e3` vừa nối xong đoạn trên, đây là lợi ích phụ chưa ai tính |
 | `WoQcCheckItems` → `WoQcChecks` → WO | có FK lên cha (CASCADE) nhưng cha **không** có FK về WO ⇒ **đứt ở ngọn** |
-| `WoQcPhotos` → `WoQcChecks` → WO | `WoQcPhotos` **không có FK nào cả** ⇒ đứt cả hai đoạn |
+| `WoQcPhotos` → `WoQcCheckItems` → `WoQcChecks` → WO | **ĐÍNH CHÍNH:** ảnh treo vào `WoQcCheckItemId`, KHÔNG phải `WoQcCheckId` — chuỗi thật dài **bốn tầng**, không phải ba như dòng này ghi lúc đầu. `WoQcPhotos` không có FK nào cả ⇒ đứt hai đoạn |
 | `SemiAllocations` → WO | không FK ⇒ đứt |
 
 **Điểm sáng:** không bảng nào trong 6 bảng đó có trigger ⇒ **bẫy L38 không dính**
@@ -421,11 +421,20 @@ script là quét theo trí nhớ của người viết script).
    những WO khác. `SemiLots` không có cột WO nên KHÔNG nên có FK về WO — cần rà
    lại chính cái script purge, không phải thêm FK.
 
+**Đã đóng** bằng migration `UnifyQcEvidenceForeignKeys` (`20260916072554`, áp live).
+Thiệp chốt 16-09: **ảnh QC là bằng chứng ⇒ Restrict**, và thống nhất luật cho cả
+`WoIpqcChecks` (đổi Cascade → Restrict, sửa lại thứ vừa áp buổi sáng).
+
+**Luật thống nhất:** hồ sơ QC **có chữ ký** → `RESTRICT` · dữ liệu **thao tác** → `CASCADE`.
+Ba bảng Restrict: `WoTraceSnapshots` · `WoIpqcChecks` · `WoQcChecks`, cộng
+`WoQcPhotos` → `WoQcCheckItems`. Hệ quả cố ý: WO đã qua QC thì **không xoá được**,
+phải `CANCELLED` — đúng quy trình đã chốt.
+
 **Nghiệm thu**
-- [ ] 6 bảng có FK về `WorkOrders`, hành vi đúng loại (cascade / restrict) đã chốt
-- [ ] 3 chuỗi đứt nối liền, kiểm bằng xoá thật trên DB cô lập chứ không chỉ đọc `.schema`
-- [ ] Gate mới: bảng có cột `WoId`/`WorkOrderId` mà không có FK ⇒ đỏ (ratchet)
-- [ ] Câu hỏi `purge-applied.sql` xoá `SemiLots` đã có kết luận
+- [x] 19/19 bảng có cột `WoId`/`WorkOrderId` đều có FK — **0 bảng còn thiếu**
+- [x] Chuỗi đứt đã nối; kiểm bằng **xoá thật** trên DB cô lập, 4 ca đều đúng
+- [ ] Gate mới: bảng có cột `WoId`/`WorkOrderId` mà không có FK ⇒ đỏ (ratchet) — **CHƯA LÀM**
+- [ ] Câu hỏi `purge-applied.sql` xoá `SemiLots` — **CHƯA có kết luận**, cần Henry
 
 ## Nợ kỹ thuật đã phát hiện, chưa xếp lịch
 

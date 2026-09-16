@@ -220,3 +220,81 @@ cp /tmp/snapshot-pre-fkcascade.cs \
 
 **Không** dùng `ef migrations remove` — lệnh đó connect live DB và chạy `Down()`
 thật (sự cố 31-05: DROP TABLE AuditLogs).
+
+
+---
+
+# Đợt 2 — `UnifyQcEvidenceForeignKeys` (2026-09-16)
+
+Quét toàn DB sau đợt 1 mới lộ ra đợt 1 **chưa đủ**: 19 bảng trỏ về WO, 6 còn
+thiếu FK. Và quan trọng hơn — một **mâu thuẫn** trong chính đợt 1.
+
+## Mâu thuẫn phải sửa lại thứ vừa áp
+
+Thiệp chốt *"ảnh QC là bằng chứng, RESTRICT luôn"*. Nhưng đọc cột thì
+`WoIpqcChecks` — đã đặt `CASCADE` buổi sáng — mang `IpqcSubmittedBy` ·
+`Judgment` · `QaApprovedBy`, tức **phiếu kiểm đã ký**, còn nặng hơn tấm ảnh
+đính kèm. Để nguyên thì schema nói một câu vô lý: *không xoá được WO vì một tấm
+ảnh, nhưng nếu không có ảnh thì xoá được cả phiếu kiểm đã ký.*
+
+**Luật thống nhất:** hồ sơ QC **có chữ ký** → `Restrict`; dữ liệu **thao tác** → `Cascade`.
+
+## Một chỗ tôi ghi SAI ở lượt quét, đã đính chính
+
+Backlog ghi chuỗi là `WoQcPhotos → WoQcChecks → WO`. Sai: ảnh treo vào
+`WoQcCheckItemId`, nên chuỗi thật **bốn tầng**:
+`WoQcPhotos → WoQcCheckItems → WoQcChecks → WorkOrders`.
+
+## Phase A
+
+```
+backup : data/Backup/SQLite/ccl_mes.db.before-fk-sweep.20260916-142501
+sha256 live   498873064cc4c30e4da0214ece21ddbe3a4ebf19b7e7a12749b8fe88a4a79e5a
+sha256 backup cf92cdc78badc56d07208b02a488f6f64c32cffb5e77cf714e0ec6452585fdf0
+trigger 8 · integrity ok · foreign_key_check 0
+6 bảng thiếu FK đều 0 trigger ⇒ bẫy L38 không dính
+```
+
+## Phase B — 8 AddForeignKey + 1 DropForeignKey
+
+```
+Restrict: WoIpqcChecks(đổi từ Cascade) · WoQcChecks · WoQcPhotos→WoQcCheckItems
+Cascade : WoMaterials · WoRunSessions · WoQtyEntries · WoPauseEvents · SemiAllocations
+type-affinity: 0 chỗ cần strip
+WoMaterials giữ nguyên FK cũ sang MaterialLots(RESTRICT) sau rebuild
+```
+
+Thử hành vi trên DB cô lập — **bốn ca, đúng cả bốn**:
+
+```
+A  WO chỉ có vật tư          → xoá được, vật tư cuốn theo        (Cascade ✓)
+B  WO có phiếu IPQC đã ký    → FOREIGN KEY constraint failed (19) (Restrict ✓)
+C  WO có phiếu FQC + ảnh QC  → FOREIGN KEY constraint failed (19) (Restrict ✓)
+C2 xoá HẠNG MỤC có ảnh       → FOREIGN KEY constraint failed (19) (ảnh chặn ✓)
+```
+
+## Phase C — áp live
+
+API dừng trước khi áp (`lsof` = 0 tiến trình). `Applying migration
+'20260916072554_UnifyQcEvidenceForeignKeys'. Done.`
+
+```
+19/19 bảng có cột WoId/WorkOrderId đều CÓ FK — 0 bảng còn thiếu
+  Restrict: WoIpqcChecks · WoQcChecks · WoTraceSnapshots
+  Cascade : 16 bảng còn lại
+  WoQcPhotos → WoQcCheckItems (RESTRICT)
+
+rowcount trước = sau ở mọi bảng · __EFMigrationsHistory 55 → 56
+integrity_check ok · foreign_key_check 0 · trigger 8 còn nguyên
+API bật lại: PID 73623 · /health 200
+```
+
+Trước khi áp: test Api **1088/1088**, `gate-all` **28/28 PASS SKIP=0**.
+
+## Còn nợ
+
+- **Chưa có gate** chặn tái phát: bảng có cột `WoId`/`WorkOrderId` mà thiếu FK
+  phải đỏ. Không có gate thì lần sau thêm bảng lại sót y như lần này.
+- **`purge-applied.sql` đang xoá `SemiLots`** — `SemiLot` là kho bán thành phẩm,
+  "1 lô cho nhiều WO". Xoá WO mà xoá lô là xoá tồn kho của WO khác. Cần Henry
+  kết luận; không phải việc thêm FK mà là rà lại chính script.

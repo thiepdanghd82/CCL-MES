@@ -753,8 +753,14 @@ public class MesDbContext : DbContext, IMesDbContext
         // giữ nguyên hiệu lực và KHÔNG mâu thuẫn: nó nói về FK tới các bảng
         // NGUỒN mà snapshot đóng băng từ đó — bằng chứng phải sống độc lập với
         // dòng nguồn có thể đổi. Còn đây là FK tới WorkOrders, tức bảng CHA.
+        // 16-09 đợt 2 — ĐỔI từ Cascade sang Restrict. Lý do: quét toàn DB xong
+        // mới lộ ra mâu thuẫn. `WoQcPhotos` (ảnh QC) được chốt là bằng chứng ⇒
+        // Restrict; mà `WoIpqcChecks` mang `IpqcSubmittedBy` · `Judgment` ·
+        // `QaApprovedBy` — tức phiếu kiểm ĐÃ KÝ, còn nặng hơn tấm ảnh đính kèm.
+        // Để Cascade thì schema nói một câu vô lý: không xoá được WO vì một tấm
+        // ảnh, nhưng nếu không có ảnh thì xoá được cả phiếu kiểm đã ký.
         b.Entity<WoIpqcCheck>().HasOne<WorkOrder>().WithMany()
-            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<WoPlateCheck>().HasOne<WorkOrder>().WithMany()
             .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<WoCutterCheck>().HasOne<WorkOrder>().WithMany()
@@ -763,6 +769,43 @@ public class MesDbContext : DbContext, IMesDbContext
             .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<WoTraceSnapshot>().HasOne<WorkOrder>().WithMany()
             .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Restrict);
+
+        // ── Đợt 2 (16-09-2026) — quét TOÀN DB, không theo purge-applied.sql ──
+        //
+        // Đợt 1 đóng 5 bảng nhưng đó không phải toàn bộ. Duyệt mọi bảng có cột
+        // `WoId`/`WorkOrderId`: 19 bảng trỏ về WO, 6 còn thiếu FK. Quét theo
+        // script purge là quét theo trí nhớ của người viết script.
+        //
+        // LUẬT THỐNG NHẤT, chốt sau khi phát hiện mâu thuẫn ở đợt 1:
+        //   hồ sơ QC CÓ CHỮ KÝ  → Restrict (bằng chứng, DB chặn thẳng)
+        //   dữ liệu THAO TÁC    → Cascade  (mất theo WO là đúng)
+        //
+        // Hệ quả cố ý: WO nào đã qua QC thì KHÔNG xoá được nữa, phải CANCELLED.
+        // Đó đúng là quy trình đã chốt cho vòng đời WO.
+
+        // Bằng chứng — Restrict.
+        b.Entity<WoQcCheck>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Restrict);
+        // Ảnh QC treo vào ITEM (`WoQcCheckItemId`), KHÔNG phải vào phiếu — chuỗi
+        // thật dài bốn tầng: WoQcPhotos → WoQcCheckItems → WoQcChecks → WorkOrders.
+        b.Entity<WoQcPhoto>().HasOne<WoQcCheckItem>().WithMany()
+            .HasForeignKey(x => x.WoQcCheckItemId).OnDelete(DeleteBehavior.Restrict);
+
+        // Dữ liệu thao tác — Cascade.
+        b.Entity<WoMaterial>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoRunSession>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoQtyEntry>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoPauseEvent>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        // SemiAllocations = liên kết WO ↔ lô bán thành phẩm đã tiêu thụ; xoá WO
+        // thì liên kết mất theo. `SemiLots` thì KHÔNG có FK về WO và không nên
+        // có: một lô phục vụ NHIỀU WO, xoá WO mà xoá lô là xoá tồn kho của WO
+        // khác. (purge-applied.sql đang xoá SemiLots — cần rà lại chính script.)
+        b.Entity<SemiAllocation>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
 
         // Phase 6 Bước 5 — audit log indexes for Syslog filter UX.
         // Sort hiển thị thường theo Timestamp DESC; filter theo
