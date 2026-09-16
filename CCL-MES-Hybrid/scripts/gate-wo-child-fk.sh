@@ -33,13 +33,25 @@ SNAP="${MES_SNAPSHOT:-$ROOT/src/CCL.MES.Infrastructure/Migrations/MesDbContextMo
 # thêm vào đây; đó là chỗ duy nhất khai danh sách này.
 EVIDENCE="WoTraceSnapshot WoIpqcCheck WoQcCheck"
 
+# MIỄN TRỪ CÓ THỜI HẠN — khai tường minh, KHÔNG giấu vào một con số baseline.
+# Mỗi dòng: Entity.Cột|lý do. In ra mỗi lần chạy để không ai quên nó tồn tại.
+#
+# SemiLot.SourceWorkOrderId: "WO nào SẢN XUẤT RA lô này". Chưa gắn FK được vì
+# chưa quyết được hành vi: một lô do WO-A làm ra có thể đang được WO-B giữ chỗ
+# (SemiAllocations), nên Cascade là XOÁ TỒN KHO của WO khác. Cột lại NOT NULL
+# nên SetNull không khả thi nếu không đổi schema. Chờ Henry — xem tờ trình
+# STOP-gate. Đây cũng là chỗ gate bản đầu (16-09) MÙ: nó chỉ so tên chính xác
+# `WoId`/`WorkOrderId` nên bỏ qua mọi tên biến thể. Nay so theo HẬU TỐ.
+PENDING="SemiLot.SourceWorkOrderId|chờ Henry quyết hành vi xoá lô bán thành phẩm"
+
 BASELINE=0
 
 scan() {  # $1 = đường dẫn snapshot
-  python3 - "$1" "$EVIDENCE" <<'PY'
+  python3 - "$1" "$EVIDENCE" "$PENDING" <<'PY'
 import re, sys, os
 
 path, evidence = sys.argv[1], sys.argv[2].split()
+pending = {p.split("|")[0]: p.split("|")[1] for p in sys.argv[3].split("\n") if "|" in p}
 if not os.path.exists(path):
     print("ERR|không thấy snapshot: " + path); sys.exit(0)
 src = open(path, encoding="utf-8").read()
@@ -63,14 +75,21 @@ for m in re.finditer(r'modelBuilder\.Entity\("([\w.]+)",\s*b\s*=>\s*\{', src):
         rels.setdefault(name, []).append(
             (tgt, fk.group(1) if fk else None, od.group(1) if od else "Cascade"))
 
-WOCOLS = ("WoId", "WorkOrderId")
+# So theo HẬU TỐ, không so tên chính xác: `SourceWorkOrderId` cũng là cột trỏ về
+# WO. Bản đầu của gate so chính xác nên mù với mọi tên biến thể — đúng cái bệnh
+# gate này sinh ra để chặn.
+WOCOL = re.compile(r"(WorkOrderId|WoId)$")
 for ent in sorted(props):
-    wocols = [c for c in props[ent] if c in WOCOLS]
+    wocols = [c for c in props[ent] if WOCOL.search(c)]
     if not wocols: continue
     for col in sorted(wocols):
         hit = [r for r in rels.get(ent, []) if r[0] == "WorkOrder" and r[1] == col]
         if not hit:
-            print("MISS|%s|%s" % (ent, col))
+            key = "%s.%s" % (ent, col)
+            if key in pending:
+                print("WAIT|%s|%s|%s" % (ent, col, pending[key]))
+            else:
+                print("MISS|%s|%s" % (ent, col))
         elif ent in evidence and hit[0][2] != "Restrict":
             print("WEAK|%s|%s|%s" % (ent, col, hit[0][2]))
 
@@ -86,9 +105,13 @@ if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
   cp "$SNAP" "$tmp/snap.cs" 2>/dev/null || { echo "[gate:wo-child-fk] self-test FAILED — không đọc được snapshot"; exit 1; }
 
-  if [ -n "$(scan "$tmp/snap.cs")" ]; then
+  # WAIT = miễn trừ đã khai tường minh, KHÔNG phải vi phạm — lọc ra trước khi
+  # khẳng định "bản nguyên vẹn phải im lặng". (Chính self-test bắt được chỗ này
+  # lúc gate mở rộng sang so khớp hậu tố.)
+  clean="$(scan "$tmp/snap.cs" | grep -v '^WAIT|' || true)"
+  if [ -n "$clean" ]; then
     echo "[gate:wo-child-fk] self-test FAILED — bản sao NGUYÊN VẸN đã bị báo vi phạm (báo động giả):"
-    scan "$tmp/snap.cs" | sed 's/^/    /'
+    printf '%s\n' "$clean" | sed 's/^/    /'
     exit 1
   fi
 
@@ -127,6 +150,10 @@ if echo "$out" | grep -q '^ERR|'; then
   echo "  Không kết luận được — sửa đường dẫn, ĐỪNG gỡ gate."
   exit 2
 fi
+printf '%s\n' "$out" | grep '^WAIT|' | while IFS='|' read -r _ ent col why; do
+  echo "[gate:wo-child-fk] ⏳ MIỄN TRỪ: $ent.$col — $why"
+done
+out="$(printf '%s\n' "$out" | grep -v '^WAIT|' || true)"
 count="$(printf '%s' "$out" | grep -c . || true)"
 
 if [ "$count" -gt "$BASELINE" ]; then
