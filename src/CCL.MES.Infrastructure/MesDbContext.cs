@@ -729,6 +729,41 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoTraceIndex>().HasIndex(x => x.WoId).IsUnique();
         b.Entity<WoTraceIndex>().HasIndex(x => x.WoNo).IsUnique();
 
+        // ── Ràng buộc tham chiếu về WorkOrders cho 5 bảng con (16-09-2026) ──
+        //
+        // ĐO TRƯỚC KHI SỬA: năm bảng này KHÔNG có khoá ngoại nào ở tầng DB
+        // (`pragma_foreign_key_list` = 0 cho cả năm) và KHÔNG có quan hệ nào
+        // khai trong EF — `WoId`/`WorkOrderId` chỉ là cột số có index. Trong
+        // khi đó 32 bảng khác của cùng DB đều có FK. Đây là chỗ SÓT, không
+        // phải lập trường chung; hệ quả là xoá một WO để lại dòng mồ côi im
+        // lặng, và phải quét tay 13 bảng con mỗi lần
+        // (`data/Backup/pre-purge-all-wo-20260910-142926/purge-applied.sql`).
+        //
+        // Khai KHÔNG navigation (`HasOne<WorkOrder>().WithMany()`) vì các
+        // entity này cố ý không mang navigation property — thêm FK là để DB
+        // gác, không phải để đổi hình dạng đối tượng.
+        //
+        // `Restrict` cho WoTraceSnapshots là điểm khác biệt có chủ đích: đó là
+        // BẰNG CHỨNG BẤT BIẾN (hồ sơ truy xuất đã đóng băng, có chữ ký). Xoá WO
+        // mà mất luôn hồ sơ ấy thì khách audit hỏi lại không còn gì để đưa —
+        // nên DB phải chặn thẳng, buộc người xoá xử lý tường minh. Bốn bảng còn
+        // lại là dữ liệu THAO TÁC, mất theo WO là đúng.
+        //
+        // Lưu ý dòng comment ở trên ("No FK to source entities by design") vẫn
+        // giữ nguyên hiệu lực và KHÔNG mâu thuẫn: nó nói về FK tới các bảng
+        // NGUỒN mà snapshot đóng băng từ đó — bằng chứng phải sống độc lập với
+        // dòng nguồn có thể đổi. Còn đây là FK tới WorkOrders, tức bảng CHA.
+        b.Entity<WoIpqcCheck>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoPlateCheck>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoCutterCheck>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoTraceIndex>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoTraceSnapshot>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Restrict);
+
         // Phase 6 Bước 5 — audit log indexes for Syslog filter UX.
         // Sort hiển thị thường theo Timestamp DESC; filter theo
         // ActorUsername / Action là pattern phổ biến nhất.
