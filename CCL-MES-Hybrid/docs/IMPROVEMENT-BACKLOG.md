@@ -376,6 +376,57 @@ defect thật để truy). **Không vá mò vì hiện KHÔNG có gì để vá.
 
 ---
 
+## FK-SWEEP — sáu bảng nữa còn thiếu khoá ngoại về `WorkOrders` (đo 2026-09-16)
+
+**Bối cảnh.** Đợt `AddWorkOrderChildForeignKeys` (`c4b54e3`) đóng 5 bảng, nhưng
+phát hiện ra đó không phải toàn bộ. Quét TOÀN DB — mọi bảng có cột `WoId` /
+`WorkOrderId` — thay vì quét theo danh sách trong `purge-applied.sql` (quét theo
+script là quét theo trí nhớ của người viết script).
+
+**Đo được: 19 bảng trỏ về WO, 6 còn thiếu FK, 0 dòng mồ côi.**
+
+| Bảng | Cột | Dòng | Ghi chú |
+|---|---|---|---|
+| `WoMaterials` | `WorkOrderId` | **8** | bảng DUY NHẤT còn dữ liệu sống; có FK sang bảng khác nhưng KHÔNG sang `WorkOrders` |
+| `WoQcChecks` | `WorkOrderId` | 0 | làm đứt chuỗi của 2 bảng cháu |
+| `WoRunSessions` | `WoId` | 0 | |
+| `WoQtyEntries` | `WoId` | 0 | |
+| `WoPauseEvents` | `WoId` | 0 | |
+| `SemiAllocations` | `WorkOrderId` | 0 | |
+
+**Ba chuỗi xoá đang ĐỨT** (bảng cháu không có cột WO, treo vào bảng cha):
+
+| Chuỗi | Tình trạng |
+|---|---|
+| `WoIpqcCheckItems` → `WoIpqcChecks` → WO | **liền mạch** — đợt `c4b54e3` vừa nối xong đoạn trên, đây là lợi ích phụ chưa ai tính |
+| `WoQcCheckItems` → `WoQcChecks` → WO | có FK lên cha (CASCADE) nhưng cha **không** có FK về WO ⇒ **đứt ở ngọn** |
+| `WoQcPhotos` → `WoQcChecks` → WO | `WoQcPhotos` **không có FK nào cả** ⇒ đứt cả hai đoạn |
+| `SemiAllocations` → WO | không FK ⇒ đứt |
+
+**Điểm sáng:** không bảng nào trong 6 bảng đó có trigger ⇒ **bẫy L38 không dính**
+(rebuild sẽ không làm mất trigger nào). 8 trigger của DB nằm ở `MaterialLots` ·
+`SemiLots` · `WoLegs` · `WorkOrders`, đều ngoài phạm vi.
+
+**Work-class** W1 · **Agent** `mes-process-architect` · **Skill** `cmes-migration-abc`
+
+### Hai câu phải hỏi trước khi làm, KHÔNG tự quyết
+
+1. **`WoQcPhotos` là bằng chứng hay dữ liệu thao tác?** Đó là ẢNH QC đính vào
+   phiếu kiểm. Nếu là bằng chứng thì nó cùng loại với `WoTraceSnapshots` và phải
+   `RESTRICT`, không phải cascade. Hiện nó không có FK nào nên xoá WO là để lại
+   ảnh mồ côi im lặng — tệ cả hai đường.
+2. **`purge-applied.sql` đang xoá `SemiLots` — nhiều khả năng đó là SAI.**
+   `SemiLot` là **kho bán thành phẩm**, và chính comment trong entity ghi "1 lô
+   cho nhiều WO". Xoá một WO mà xoá luôn lô bán thành phẩm là xoá tồn kho của
+   những WO khác. `SemiLots` không có cột WO nên KHÔNG nên có FK về WO — cần rà
+   lại chính cái script purge, không phải thêm FK.
+
+**Nghiệm thu**
+- [ ] 6 bảng có FK về `WorkOrders`, hành vi đúng loại (cascade / restrict) đã chốt
+- [ ] 3 chuỗi đứt nối liền, kiểm bằng xoá thật trên DB cô lập chứ không chỉ đọc `.schema`
+- [ ] Gate mới: bảng có cột `WoId`/`WorkOrderId` mà không có FK ⇒ đỏ (ratchet)
+- [ ] Câu hỏi `purge-applied.sql` xoá `SemiLots` đã có kết luận
+
 ## Nợ kỹ thuật đã phát hiện, chưa xếp lịch
 
 | Việc | Ghi chú |
