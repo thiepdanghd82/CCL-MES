@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "NPI Process — Label Manufacturing",
+    "subtitle": "From customer inquiry to mass-production release",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {"id": "happy-path", "label": "Inquiry to release", "focus": ["inquiry", "feasibility", "costing", "quote", "sample", "fai", "approval", "release"], "note": "Follow one new product from RFQ to mass-production release."},
+      {"id": "exceptions", "label": "Rework loops", "focus": ["fai", "ncr", "sample", "feasibility"], "note": "Where a failed FAI sends the job back for a new sample or a design change."},
+      {"id": "records", "label": "Records and specs", "focus": ["costing", "spec", "bom", "release"], "note": "The documents that must exist before release."}
+    ]
+  },
+  "lanes": [
+    {"id": "customer", "label": "Customer"},
+    {"id": "sales", "label": "Sales"},
+    {"id": "npi", "label": "NPI Engineering", "variant": "emphasis"},
+    {"id": "qa", "label": "Quality", "variant": "exception"},
+    {"id": "production", "label": "Production"}
+  ],
+  "phases": [
+    {"id": "p-inquiry", "label": "Inquiry", "fromCol": 0, "toCol": 1},
+    {"id": "p-develop", "label": "Development", "fromCol": 2, "toCol": 4, "variant": "emphasis"},
+    {"id": "p-qualify", "label": "Qualification", "fromCol": 5, "toCol": 6},
+    {"id": "p-release", "label": "Release", "fromCol": 7, "toCol": 7, "variant": "dashed"}
+  ],
+  "groups": [
+    {"id": "g-costing", "label": "Cost model", "lane": "npi", "fromCol": 2, "toCol": 3, "variant": "emphasis"},
+    {"id": "g-qa", "label": "FAI gate", "lane": "qa", "fromCol": 5, "toCol": 6, "variant": "security"}
+  ],
+  "mainPath": ["inquiry", "feasibility", "costing", "quote", "sample", "fai", "approval", "release"],
+  "nodes": [
+    {"id": "inquiry", "lane": "customer", "col": 0, "type": "people", "label": "RFQ + drawing", "sublabel": "spec · qty · price"},
+    {"id": "approval", "lane": "customer", "col": 6, "type": "quality", "label": "FAI approval", "sublabel": "sign-off"},
+    {"id": "quote", "lane": "sales", "col": 3, "type": "document", "label": "Quotation", "sublabel": "price + lead time"},
+    {"id": "po", "lane": "sales", "col": 7, "type": "document", "label": "Mass PO", "sublabel": "first order", "variant": "dashed"},
+    {"id": "feasibility", "lane": "npi", "col": 1, "type": "process", "label": "Feasibility", "sublabel": "material + tooling"},
+    {"id": "costing", "lane": "npi", "col": 2, "type": "process", "label": "Costing", "sublabel": "VA% / contribution", "tag": "gate"},
+    {"id": "spec", "lane": "npi", "col": 3, "type": "document", "label": "Process spec", "sublabel": "print + die-cut"},
+    {"id": "bom", "lane": "npi", "col": 4, "type": "document", "label": "BOM + tooling", "sublabel": "substrate · die"},
+    {"id": "sample", "lane": "production", "col": 4, "type": "machine", "label": "Sample run", "sublabel": "flexo / digital"},
+    {"id": "fai", "lane": "qa", "col": 5, "type": "quality", "label": "FAI", "sublabel": "dimension · CPK", "tag": "gate"},
+    {"id": "ncr", "lane": "qa", "col": 6, "type": "security", "label": "NCR", "sublabel": "root cause"},
+    {"id": "release", "lane": "production", "col": 7, "type": "storage", "label": "Mass production", "sublabel": "released routing"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "inquiry", "to": "feasibility", "label": "review"},
+    {"id": "e2", "from": "feasibility", "to": "costing"},
+    {"id": "e3", "from": "costing", "to": "quote", "label": "cost sheet"},
+    {"id": "e3b", "from": "costing", "to": "spec", "variant": "dashed", "route": "below", "label": "draft"},
+    {"id": "e4", "from": "spec", "to": "bom", "variant": "dashed"},
+    {"id": "e5", "from": "quote", "to": "sample", "label": "sample order", "route": "below"},
+    {"id": "e5b", "from": "bom", "to": "sample"},
+    {"id": "e6", "from": "sample", "to": "fai", "label": "first article"},
+    {"id": "e7", "from": "fai", "to": "approval", "label": "report", "route": "above"},
+    {"id": "e8", "from": "fai", "to": "ncr", "label": "fail", "variant": "security", "role": "error"},
+    {"id": "e9", "from": "ncr", "to": "sample", "label": "re-run", "variant": "security", "route": "below"},
+    {"id": "e9b", "from": "ncr", "to": "feasibility", "label": "design change", "variant": "dashed", "route": "above", "labelAt": 0.6},
+    {"id": "e10", "from": "approval", "to": "release", "label": "approved", "variant": "emphasis", "route": "below"},
+    {"id": "e11", "from": "approval", "to": "po", "variant": "dashed"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Gates", "items": ["Costing gate: VA% and contribution must clear target before quoting", "FAI gate: dimensions, adhesion, CPK ≥ 1.33 on critical features"]},
+    {"dot": "rose", "title": "Exceptions", "items": ["FAI fail opens an NCR with root cause", "Re-run the sample, or return to feasibility for a design change"]},
+    {"dot": "emerald", "title": "Release package", "items": ["Approved process spec and BOM", "Signed FAI report", "Routing released to production"]}
+  ]
+}

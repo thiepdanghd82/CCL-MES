@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Sample Request Lifecycle",
+    "subtitle": "Status of one customer sample request from intake to close",
+    "quality_profile": "showcase",
+    "views": [
+      {"id": "main", "label": "Main rail", "focus": ["new", "feasibility", "quoted", "in-production", "fai", "approved"], "note": "The states a request passes through when everything goes right."},
+      {"id": "exits", "label": "Ways out", "focus": ["quoted", "fai", "rejected", "cancelled", "expired"], "note": "Every terminal state and the state it can be reached from."}
+    ]
+  },
+  "states": [
+    {"id": "new", "type": "start", "label": "New", "sublabel": "RFQ received", "col": 0},
+    {"id": "feasibility", "type": "active", "label": "Feasibility", "sublabel": "NPI review", "col": 1},
+    {"id": "quoted", "type": "waiting", "label": "Quoted", "sublabel": "waiting for PO", "col": 2, "tag": "customer"},
+    {"id": "in-production", "type": "active", "label": "In production", "sublabel": "sample run", "col": 3},
+    {"id": "fai", "type": "waiting", "label": "FAI submitted", "sublabel": "waiting sign-off", "col": 4, "tag": "customer"},
+    {"id": "approved", "type": "success", "label": "Approved", "sublabel": "released", "col": 5},
+    {"id": "expired", "type": "neutral", "label": "Expired", "sublabel": "no PO in 30 d", "col": 2, "row": 1},
+    {"id": "rejected", "type": "failure", "label": "Rejected", "sublabel": "deviation", "col": 4, "row": 1},
+    {"id": "cancelled", "type": "failure", "label": "Cancelled", "sublabel": "by customer", "col": 1, "row": 1}
+  ],
+  "transitions": [
+    {"id": "t1", "from": "new", "to": "feasibility", "label": "assign"},
+    {"id": "t2", "from": "feasibility", "to": "quoted", "label": "cost OK"},
+    {"id": "t3", "from": "quoted", "to": "in-production", "label": "sample PO"},
+    {"id": "t4", "from": "in-production", "to": "fai", "label": "report"},
+    {"id": "t5", "from": "fai", "to": "approved", "label": "signed"},
+    {"id": "t6", "from": "fai", "to": "rejected", "label": "deviation"},
+    {"id": "t7", "from": "rejected", "to": "in-production", "label": "re-sample", "variant": "dashed"},
+    {"id": "t8", "from": "quoted", "to": "expired", "label": "30 days", "variant": "dashed"},
+    {"id": "t9", "from": "feasibility", "to": "cancelled", "label": "not feasible", "variant": "security"},
+    {"id": "t10", "from": "expired", "to": "quoted", "label": "re-open", "variant": "dashed"}
+  ],
+  "cards": [
+    {"dot": "emerald", "title": "Terminal states", "items": ["Approved — routing released, request closed", "Rejected — recoverable through a corrected sample", "Cancelled / Expired — closed, may be re-opened from Expired"]},
+    {"dot": "amber", "title": "Waits", "items": ["Quoted waits on the customer PO", "FAI submitted waits on the customer SQE"]}
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagrify/sequence",
+  "title": "Diagrify sequence diagram",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagram_type", "meta", "participants", "messages"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "diagram_type": { "const": "sequence" },
+    "meta": { "$ref": "#/$defs/meta" },
+    "participants": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "label"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "type": { "$ref": "#/$defs/nodeType" },
+          "label": { "$ref": "#/$defs/shortText" },
+          "sublabel": { "$ref": "#/$defs/shortText" }
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "fromMessage", "toMessage"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "kind": { "enum": ["alt", "loop", "opt", "par", "note"] },
+          "label": { "$ref": "#/$defs/shortText" },
+          "fromMessage": { "$ref": "#/$defs/id" },
+          "toMessage": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "from", "to", "label"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "from": { "$ref": "#/$defs/id" },
+          "to": { "$ref": "#/$defs/id" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+          "variant": { "$ref": "#/$defs/edgeVariant" },
+          "kind": { "enum": ["sync", "async", "return"] },
+          "note": { "type": "string", "maxLength": 80 }
+        }
+      }
+    },
+    "activations": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["participant", "fromMessage", "toMessage"],
+        "properties": {
+          "participant": { "$ref": "#/$defs/id" },
+          "fromMessage": { "$ref": "#/$defs/id" },
+          "toMessage": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "cards": { "$ref": "#/$defs/cards" }
+  }
+}

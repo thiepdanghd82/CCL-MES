@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "FAI Approval — Customer Sign-off",
+    "subtitle": "First-article inspection report exchanged between plant and customer",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {"id": "happy", "label": "Approved first time", "focus": ["qa", "npi", "sales", "customer"], "note": "Report goes out, customer signs, routing is released."},
+      {"id": "rework", "label": "Customer rejects", "focus": ["customer", "sales", "npi", "production"], "note": "A rejection returns to NPI for a corrected sample before a second FAI."}
+    ]
+  },
+  "participants": [
+    {"id": "production", "type": "machine", "label": "Production", "sublabel": "sample run"},
+    {"id": "qa", "type": "quality", "label": "QA", "sublabel": "FAI + CPK"},
+    {"id": "npi", "type": "process", "label": "NPI", "sublabel": "engineering"},
+    {"id": "sales", "type": "people", "label": "Sales", "sublabel": "account owner"},
+    {"id": "customer", "type": "external", "label": "Customer", "sublabel": "SQE"}
+  ],
+  "segments": [
+    {"id": "s-alt", "kind": "alt", "label": "customer decision", "fromMessage": "m6", "toMessage": "m9"}
+  ],
+  "messages": [
+    {"id": "m1", "from": "production", "to": "qa", "label": "first-article samples", "note": "5 pcs per cavity, labelled"},
+    {"id": "m2", "from": "qa", "to": "qa", "label": "measure + CPK"},
+    {"id": "m3", "from": "qa", "to": "npi", "label": "FAI report draft", "kind": "async"},
+    {"id": "m4", "from": "npi", "to": "qa", "label": "spec cross-check", "kind": "return"},
+    {"id": "m5", "from": "npi", "to": "sales", "label": "FAI package (PDF + samples)", "variant": "emphasis"},
+    {"id": "m6", "from": "sales", "to": "customer", "label": "submit for approval", "variant": "emphasis"},
+    {"id": "m7", "from": "customer", "to": "sales", "label": "approved — signed FAI", "kind": "return", "variant": "emphasis"},
+    {"id": "m8", "from": "sales", "to": "npi", "label": "release routing", "variant": "emphasis"},
+    {"id": "m9", "from": "customer", "to": "npi", "label": "rejected — deviation list", "kind": "return", "variant": "security"},
+    {"id": "m10", "from": "npi", "to": "production", "label": "corrected sample order", "variant": "security"}
+  ],
+  "activations": [
+    {"participant": "qa", "fromMessage": "m1", "toMessage": "m4"},
+    {"participant": "customer", "fromMessage": "m6", "toMessage": "m9"}
+  ],
+  "cards": [
+    {"dot": "rose", "title": "Gate", "items": ["FAI report must include CPK on every critical dimension", "Customer SQE signs the report; verbal approval is not release"]},
+    {"dot": "amber", "title": "Timing", "items": ["Target: 5 working days from sample to customer submission", "Rejection restarts the loop at production"]}
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Label Plant — Systems Map",
+    "subtitle": "How orders, specs and shop-floor data move between ERP, MES and the lines",
+    "quality_profile": "showcase",
+    "views": [
+      {"id": "order-path", "label": "Order to shipment", "focus": ["customer", "erp", "mes", "flexo", "diecut", "wms"], "note": "Follow one production order from ERP release to the finished-goods warehouse."},
+      {"id": "quality-loop", "label": "Quality data loop", "focus": ["flexo", "diecut", "spc", "mes"], "note": "Measurement data flows from the lines into SPC and back to MES as hold / release."},
+      {"id": "engineering", "label": "Engineering inputs", "focus": ["plm", "mes", "flexo", "digital"], "note": "Specs and artwork reach the lines through PLM and MES only."}
+    ]
+  },
+  "components": [
+    {"id": "customer", "type": "external", "label": "Customer portal", "sublabel": "PO · drawings", "pos": [40, 250], "size": [150, 60]},
+    {"id": "erp", "type": "backend", "label": "ERP", "sublabel": "orders · BOM · cost", "pos": [300, 250], "size": [150, 60], "tag": "SAP"},
+    {"id": "plm", "type": "document", "label": "PLM / spec library", "sublabel": "artwork · process spec", "pos": [600, 80], "size": [170, 60]},
+    {"id": "mes", "type": "backend", "label": "MES", "sublabel": "routing · WIP · OEE", "pos": [600, 250], "size": [150, 60], "variant": "emphasis"},
+    {"id": "spc", "type": "quality", "label": "SPC / CPK", "sublabel": "measurement data", "pos": [600, 440], "size": [150, 60]},
+    {"id": "flexo", "type": "machine", "label": "Flexo line", "sublabel": "8-color · UV", "pos": [900, 150], "size": [150, 60]},
+    {"id": "digital", "type": "machine", "label": "Digital press", "sublabel": "short run · variable", "pos": [900, 250], "size": [150, 60]},
+    {"id": "diecut", "type": "machine", "label": "Die-cut / rewind", "sublabel": "rotary · inspection", "pos": [900, 350], "size": [150, 60]},
+    {"id": "wms", "type": "storage", "label": "WMS", "sublabel": "FG + raw material", "pos": [1190, 250], "size": [150, 60]},
+    {"id": "supplier", "type": "external", "label": "Material suppliers", "sublabel": "substrate · ink · liner", "pos": [1190, 440], "size": [170, 60]}
+  ],
+  "boundaries": [
+    {"kind": "site", "label": "Plant network", "wraps": ["erp", "plm", "mes", "spc", "flexo", "digital", "diecut", "wms"]},
+    {"kind": "zone", "label": "Shop floor", "wraps": ["flexo", "digital", "diecut"], "padding": 22}
+  ],
+  "connections": [
+    {"id": "c1", "from": "customer", "to": "erp", "label": "PO / EDI", "variant": "emphasis"},
+    {"id": "c2", "from": "erp", "to": "mes", "label": "production order", "variant": "emphasis"},
+    {"id": "c3", "from": "plm", "to": "mes", "label": "released spec"},
+    {"id": "c4", "from": "mes", "to": "flexo", "label": "job + recipe"},
+    {"id": "c5", "from": "mes", "to": "digital", "label": "job", "variant": "emphasis"},
+    {"id": "c6", "from": "mes", "to": "diecut", "label": "job"},
+    {"id": "c7", "from": "flexo", "to": "spc", "label": "inline data", "variant": "dashed", "fromSide": "right", "toSide": "right", "via": [[1085, 180], [1085, 470]], "labelAt": 0.4, "labelDx": 30},
+    {"id": "c8", "from": "diecut", "to": "spc", "label": "inspection", "variant": "dashed", "fromSide": "bottom", "toSide": "right"},
+    {"id": "c9", "from": "spc", "to": "mes", "label": "hold / release", "variant": "security"},
+    {"id": "c10", "from": "diecut", "to": "wms", "label": "FG receipt", "fromSide": "right", "toSide": "bottom"},
+    {"id": "c11", "from": "erp", "to": "supplier", "label": "purchase order", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[375, 530], [1170, 530]]},
+    {"id": "c12", "from": "supplier", "to": "wms", "label": "delivery", "fromSide": "top", "toSide": "bottom"},
+    {"id": "c13", "from": "wms", "to": "erp", "label": "stock + shipment", "variant": "dashed", "fromSide": "top", "toSide": "top", "via": [[1265, 40], [375, 40]]}
+  ],
+  "cards": [
+    {"dot": "emerald", "title": "Systems of record", "items": ["ERP owns orders, BOM and standard cost", "PLM owns artwork and the released process spec", "MES owns routing, WIP and OEE per line"]},
+    {"dot": "rose", "title": "Quality control", "items": ["Inline and final inspection data land in SPC", "SPC sends hold / release back to MES — no direct line control"]},
+    {"dot": "amber", "title": "Boundaries", "items": ["Customer and suppliers stay outside the plant network", "Shop-floor equipment only talks to MES"]}
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Sample Web App",
+    "subtitle": "Classic three-tier SaaS on one cloud region",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {"id": "request-path", "label": "Primary request path", "focus": ["users", "cdn", "lb", "api", "db"], "note": "Follow a customer request from the edge to durable state."},
+      {"id": "async-work", "label": "Async work", "focus": ["api", "queue", "worker", "db"], "note": "Background jobs drained from the queue by the worker."}
+    ]
+  },
+  "components": [
+    {"id": "users", "type": "external", "label": "Users", "sublabel": "browser · mobile", "pos": [40, 240], "size": [130, 60]},
+    {"id": "auth", "type": "security", "label": "Auth provider", "sublabel": "OAuth 2.0 · JWT", "pos": [40, 80], "size": [130, 60]},
+    {"id": "cdn", "type": "cloud", "label": "CDN", "sublabel": "edge cache", "pos": [270, 240], "size": [130, 60]},
+    {"id": "lb", "type": "cloud", "label": "Load balancer", "sublabel": "HTTPS :443", "pos": [500, 240], "size": [130, 60]},
+    {"id": "api", "type": "backend", "label": "API server", "sublabel": "FastAPI :8000", "pos": [730, 240], "size": [130, 60], "variant": "emphasis"},
+    {"id": "cache", "type": "database", "label": "Redis", "sublabel": "read-through", "pos": [730, 80], "size": [130, 60]},
+    {"id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "primary :5432", "pos": [960, 240], "size": [130, 60]},
+    {"id": "queue", "type": "messagebus", "label": "Job queue", "sublabel": "SQS", "pos": [730, 400], "size": [130, 60]},
+    {"id": "worker", "type": "backend", "label": "Worker", "sublabel": "async jobs", "pos": [960, 400], "size": [130, 60]},
+    {"id": "s3", "type": "storage", "label": "Object storage", "sublabel": "static assets", "pos": [270, 400], "size": [130, 60]}
+  ],
+  "boundaries": [
+    {"kind": "region", "label": "Cloud region", "wraps": ["cdn", "lb", "api", "cache", "db", "queue", "worker", "s3"]},
+    {"kind": "security-group", "label": "sg-app", "wraps": ["lb", "api"], "padding": 20}
+  ],
+  "connections": [
+    {"id": "c1", "from": "users", "to": "cdn", "label": "HTTPS", "variant": "emphasis"},
+    {"id": "c2", "from": "auth", "to": "api", "label": "verify JWT", "variant": "security", "fromSide": "right", "toSide": "top", "via": [[210, 110], [210, 180], [795, 180]]},
+    {"id": "c3", "from": "cdn", "to": "lb", "variant": "emphasis"},
+    {"id": "c4", "from": "cdn", "to": "s3", "label": "static", "variant": "dashed"},
+    {"id": "c5", "from": "lb", "to": "api", "variant": "emphasis"},
+    {"id": "c6", "from": "api", "to": "cache", "label": "GET / SET", "labelAt": 0.8},
+    {"id": "c7", "from": "api", "to": "db", "label": "SQL", "variant": "emphasis"},
+    {"id": "c8", "from": "api", "to": "queue", "label": "enqueue", "variant": "dashed"},
+    {"id": "c9", "from": "queue", "to": "worker"},
+    {"id": "c10", "from": "worker", "to": "db", "label": "write results", "variant": "dashed"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Edge", "items": ["CDN fronts all traffic and serves static assets from object storage"]},
+    {"dot": "emerald", "title": "Application", "items": ["FastAPI behind an HTTPS load balancer", "Redis read-through cache", "Async work drained from the queue by a worker"]},
+    {"dot": "rose", "title": "Security", "items": ["OAuth 2.0 with JWT verification on every request", "Load balancer and API isolated in one security group"]}
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "diagrify",
+  "version": "0.1.0",
+  "description": "Typed JSON → validated, self-contained, interactive diagram HTML (architecture / workflow / sequence / lifecycle). Zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "diagrify": "./bin/diagrify.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "demo": "node bin/diagrify.mjs demo ../examples",
+    "doctor": "node bin/diagrify.mjs doctor"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "renderers",
+    "schemas",
+    "assets",
+    "examples",
+    "SKILL.md"
+  ]
+}

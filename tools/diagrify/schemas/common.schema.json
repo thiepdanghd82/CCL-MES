@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagrify/common",
+  "title": "Diagrify shared definitions",
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,47}$" },
+    "shortText": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "nodeType": { "enum": ["frontend", "backend", "database", "cloud", "security", "messagebus", "external", "process", "machine", "quality", "storage", "people", "document"] },
+    "edgeVariant": { "enum": ["default", "emphasis", "security", "dashed"] },
+    "nodeVariant": { "enum": ["default", "emphasis", "security", "dashed"] },
+    "side": { "enum": ["left", "right", "top", "bottom"] },
+    "point": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "focus"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/shortText" },
+        "focus": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "$ref": "#/$defs/id" } },
+        "note": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "items"],
+      "properties": {
+        "dot": { "enum": ["cyan", "emerald", "amber", "rose", "violet", "slate"] },
+        "title": { "$ref": "#/$defs/shortText" },
+        "items": { "type": "array", "minItems": 1, "maxItems": 6, "items": { "type": "string", "minLength": 1, "maxLength": 140 } }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subtitle": { "type": "string", "maxLength": 140 },
+        "output": { "type": "string", "maxLength": 200 },
+        "animation": { "enum": ["none", "trace"] },
+        "theme": { "enum": ["dark", "light"] },
+        "locale": { "enum": ["en", "vi", "zh-CN"] },
+        "quality_profile": { "enum": ["standard", "showcase"] },
+        "legend": { "enum": ["auto", "hidden"] },
+        "viewBox": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
+        "views": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/view" } }
+      }
+    },
+    "cards": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/card" } }
+  }
+}

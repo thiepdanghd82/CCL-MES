@@ -29,6 +29,7 @@ Pha 4 (gate tĩnh) **không** thay cho pha 5 (chạy thật + dán output).
 | xác nhận **OK/NG** (Prepress · IPQC · FQC · OQC) | `cmes-confirm-toggle` | `cmes-shopfloor-ux` |
 | policy · role · `AuthorizeView` | `cmes-rbac-matrix` | `cmes-implementer` |
 | **bất kỳ chuỗi hiển thị nào** | `cmes-i18n-parity` ← luôn kèm | (agent đang chủ trì) |
+| **sơ đồ** (state machine · kiến trúc · quy trình · sequence) → HTML | `diagrify` — nguồn `tools/diagrify`, ra `CCL-MES-Hybrid/docs/diagrams/` | (agent đang chủ trì) |
 | import IFS · outbox · idempotency | `cmes-migration-abc` | `mes-integration-architect` |
 | "không chạy" · 404 · renderer dead | `cmes-verify-evidence` | `cmes-rca-detective` |
 | `MES_DB_PATH` · live SQLite · WAL · demo DB | `cmes-live-db` | `cmes-verifier` |

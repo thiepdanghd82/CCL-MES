@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Quy trình in nhãn — từ artwork đến xuất hàng",
+    "locale": "vi",
+    "animation": "trace",
+    "views": [
+      {"id": "chinh", "label": "Luồng chính", "focus": ["artwork", "che-ban", "in", "be", "kiem-tra", "dong-goi", "xuat"], "note": "Đường đi của một lệnh sản xuất khi mọi thứ đạt."}
+    ]
+  },
+  "lanes": [
+    {"id": "npi", "label": "NPI"},
+    {"id": "sx", "label": "Sản xuất", "variant": "emphasis"},
+    {"id": "qc", "label": "QC", "variant": "exception"},
+    {"id": "kho", "label": "Kho"}
+  ],
+  "phases": [
+    {"id": "p1", "label": "Chuẩn bị", "fromCol": 0, "toCol": 1},
+    {"id": "p2", "label": "Sản xuất", "fromCol": 2, "toCol": 3, "variant": "emphasis"},
+    {"id": "p3", "label": "Hoàn tất", "fromCol": 4, "toCol": 5}
+  ],
+  "mainPath": ["artwork", "che-ban", "in", "be", "kiem-tra", "dong-goi", "xuat"],
+  "nodes": [
+    {"id": "artwork", "lane": "npi", "col": 0, "type": "document", "label": "Artwork duyệt", "sublabel": "bản in mẫu"},
+    {"id": "che-ban", "lane": "npi", "col": 1, "type": "process", "label": "Chế bản", "sublabel": "khuôn · bản in"},
+    {"id": "vat-tu", "lane": "kho", "col": 1, "type": "storage", "label": "Cấp vật tư", "sublabel": "đế · mực · liner"},
+    {"id": "in", "lane": "sx", "col": 2, "type": "machine", "label": "In flexo", "sublabel": "8 màu UV"},
+    {"id": "be", "lane": "sx", "col": 3, "type": "machine", "label": "Bế · cuộn", "sublabel": "rotary"},
+    {"id": "kiem-tra", "lane": "qc", "col": 4, "type": "quality", "label": "Kiểm tra OQC", "sublabel": "màu · kích thước", "tag": "gate"},
+    {"id": "ncr", "lane": "qc", "col": 3, "type": "security", "label": "NCR", "sublabel": "làm lại"},
+    {"id": "dong-goi", "lane": "sx", "col": 5, "type": "process", "label": "Đóng gói", "sublabel": "nhãn thùng"},
+    {"id": "xuat", "lane": "kho", "col": 5, "type": "storage", "label": "Xuất hàng", "sublabel": "FG · DO"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "artwork", "to": "che-ban", "label": "phê duyệt"},
+    {"id": "e2", "from": "che-ban", "to": "in"},
+    {"id": "e3", "from": "vat-tu", "to": "in", "label": "cấp phát", "variant": "dashed"},
+    {"id": "e4", "from": "in", "to": "be"},
+    {"id": "e5", "from": "be", "to": "kiem-tra", "label": "mẫu lô"},
+    {"id": "e6", "from": "kiem-tra", "to": "dong-goi", "label": "đạt"},
+    {"id": "e7", "from": "kiem-tra", "to": "ncr", "label": "không đạt", "variant": "security"},
+    {"id": "e8", "from": "ncr", "to": "in", "label": "in lại", "variant": "security"},
+    {"id": "e9", "from": "dong-goi", "to": "xuat"}
+  ],
+  "cards": [
+    {"dot": "rose", "title": "Cổng kiểm soát", "items": ["OQC kiểm màu theo mẫu chuẩn và kích thước theo bản vẽ", "Không đạt → NCR, in lại từ công đoạn in"]}
+  ]
+}
