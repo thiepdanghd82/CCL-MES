@@ -32,3 +32,17 @@ scripts/RotateSeedPasswords/rotate-seed.audit.log
 # đuôi là timestamp, nên phải khai riêng.
 CCL-MES-Hybrid/docs/*-migration-evidence/*.db.before-*
 CCL-MES-Hybrid/docs/*-migration-evidence/*.db.after-*
+
+# Tar blob + log của backup hằng ngày — sản phẩm vận hành, không phải source.
+# (Bản sao .db trong data/Backup/pre-*/ đã bị `*.db` ở trên bắt; phần text
+# rowcount/sha/purge-applied.sql thì CÓ commit — đó là bằng chứng, luật L65.)
+data/Backup/Blobs/
+data/Backup/backup-daily.log
+data/Backup/.last-lotsync-backup
+
+# Cấu hình runtime do chính app ghi ra trên từng máy (lịch backup…).
+data/Library/
+
+# Script RecoverAdmin chạy từ repo-root nên log rơi ra đây, không phải
+# scripts/RecoverAdmin/ như dòng đã khai ở trên.
+/recover.audit.log
