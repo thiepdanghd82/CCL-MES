@@ -550,16 +550,26 @@ public sealed class WorkOrdersPageTests : TestContext
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
         cut.Find("button.wo-find-btn").Click();
 
+        // Bất biến của test này KHÔNG đổi: chip phải phản ánh MesPhase chuẩn
+        // (FQC_PENDING), không phải CurrentStep legacy (OpSetting). Chỉ HÌNH
+        // THỨC đổi — từ 2026-09-16 chip hiện nhãn đã dịch chứ không in token
+        // thô ra cho người đứng máy đọc. So với chuỗi lấy từ catalog để test
+        // vẫn đúng khi đổi ngôn ngữ, và vẫn đỏ nếu ai lái chip về CurrentStep.
+        var expectedLabel = Services
+            .GetRequiredService<CCL.MES.Hybrid.Client.Localization.ITranslator>()
+            .T("legs.phase.fqc_pending");
+
         cut.WaitForAssertion(() =>
         {
             var chip = cut.Find("[data-testid='wo-card-phase-chip']");
-            Assert.Equal("FQC_PENDING", chip.TextContent.Trim());
+            Assert.Equal(expectedLabel, chip.TextContent.Trim());
+            Assert.NotEqual("OpSetting", chip.TextContent.Trim());
             // Chip CSS class derived from canonical MesPhase, not server's
             // legacy BadgeCssClass (which was keyed on CurrentStep).
             Assert.Contains("wo-phase-fqc-pending", chip.GetAttribute("class") ?? "");
 
             var phaseRow = cut.Find("[data-testid='wo-card-phase-row']");
-            Assert.Equal("FQC_PENDING", phaseRow.TextContent.Trim());
+            Assert.Equal(expectedLabel, phaseRow.TextContent.Trim());
         });
     }
 

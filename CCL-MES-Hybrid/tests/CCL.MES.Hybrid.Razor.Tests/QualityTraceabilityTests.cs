@@ -120,7 +120,13 @@ public sealed class QualityTraceabilityTests : TestContext
         var cut = RenderComponent<QualityTraceability>();
         Assert.Single(cut.FindAll("tr.trace-row"));
         Assert.Contains("WO-TR-1", cut.Markup);
-        Assert.Contains("RUNNING", cut.Markup);
+        // Cột phase nay hiện NHÃN đã dịch ("Đang chạy") chứ không phải token
+        // RUNNING. Tra qua translator thay vì chốt chuỗi cứng, để test không vỡ
+        // nếu ngôn ngữ mặc định của test host đổi.
+        Assert.Contains(
+            Services.GetRequiredService<CCL.MES.Hybrid.Client.Localization.ITranslator>()
+                    .T("legs.phase.running"),
+            cut.Markup);
         Assert.Empty(_wm.Windows);   // no detail window yet
 
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());

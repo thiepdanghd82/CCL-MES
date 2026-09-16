@@ -38,7 +38,7 @@
     {
         <div class="legs-head">
             <span class="legs-head-wo">@_view.WoNo</span>
-            <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@_view.MesPhase</span>
+            <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@PhaseText(_view.MesPhase)</span>
             <span class="legs-head-count">@T("legs.head.count", _view.Legs.Count)</span>
             <span class="legs-head-prog" title="@T("legs.head.progress", DoneCount(), LegTotal())">
                 <span class="legs-head-prog-bar"><span class="legs-head-prog-fill" style="width:@(DonePct())%"></span></span>

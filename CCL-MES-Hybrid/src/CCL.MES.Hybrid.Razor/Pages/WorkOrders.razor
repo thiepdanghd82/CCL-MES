@@ -151,7 +151,7 @@ else
                             <button type="button" class="woa-card" @onclick="@(() => OnOpenWoCardAsync(w.WoNo))">
                                 <div class="woa-head">
                                     <span class="woa-no">@w.WoNo</span>
-                                    <span class="woa-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
+                                    <span class="woa-badge @PhaseBadgeClass(w.MesPhase)">@PhaseText(w.MesPhase)</span>
                                 </div>
                                 <div class="woa-kv"><span>@T("wo.field.customer")</span><strong>@(w.CustomerName ?? "—")</strong></div>
                                 <div class="woa-kv"><span>@T("wo.field.product")</span><strong>@w.ProductName</strong></div>
@@ -177,13 +177,13 @@ else
                    making the chip + step row lie about the actual state. *@
                 @* SpecHub-style 7-step phase stepper. *@
                 <div class="wo-stepper">
-                    @for (var i = 0; i < WoSteps.Length; i++)
+                    @for (var i = 0; i < WoStepKeys.Length; i++)
                     {
                         var idx = i + 1;
                         var curStep = StepIndexOf(_summary.MesPhase);
                         <div class="wo-step @(idx < curStep ? "wo-step-done" : (idx == curStep ? "wo-step-cur" : "wo-step-todo"))">
                             <div class="wo-step-num">@(idx < curStep ? "✓" : idx.ToString())</div>
-                            <div class="wo-step-label">@WoSteps[i]</div>
+                            <div class="wo-step-label">@T(WoStepKeys[i])</div>
                         </div>
                     }
                 </div>
@@ -590,16 +590,10 @@ else
         catch (Exception ex) { Log.LogWarning(ex, "[workorders] audit load failed"); _woAudit = null; }
     }
 
-    private static string PhaseLabel(string p) => p switch
-    {
-        "PREPRESS" => "PRE-PRESS",
-        "IPQC_WAIT" => "IPQC",
-        "QA_PENDING" => "QA",
-        "IPQC_APPROVED" => "READY",
-        "FQC_PENDING" => "FQC",
-        "OQC_PENDING" => "OQC",
-        _ => p,
-    };
+    // PhaseLabel() cũ đã bỏ: nó map phase → viết tắt TIẾNG ANH khai cứng
+    // ("PRE-PRESS" · "QA" · "READY") nên người đứng máy đọc tiếng Anh dù đã
+    // bật tiếng Việt, và nó là bản sao thứ hai của bảng từ ngữ đã chốt trong
+    // TranslationCatalog.Legs. Nay dùng PhaseText() ở LocalizedComponentBase.
 
     private static string PhaseBadgeClass(string p) => p switch
     {
@@ -608,9 +602,13 @@ else
         _ => "wo-badge-info",
     };
 
-    // SpecHub 7-step phase stepper.
-    private static readonly string[] WoSteps =
-        { "Pre-press", "OP Setting", "IPQC", "Ready to Run", "Running", "FQC", "OQC" };
+    // SpecHub 7-step phase stepper. Giữ KEY chứ không giữ chuỗi — chuỗi cứng
+    // ở đây là lý do thanh bước vẫn tiếng Anh sau khi cả app đã song ngữ.
+    private static readonly string[] WoStepKeys =
+    {
+        "wo.step.prepress", "wo.step.setting", "wo.step.ipqc", "wo.step.readytorun",
+        "wo.step.running", "wo.step.fqc", "wo.step.oqc",
+    };
 
     private static int StepIndexOf(string p) => p switch
     {
@@ -1124,10 +1122,15 @@ else
     /// <summary>Operator-visible display label for the chip + status
     /// row. Prefers canonical MesPhase; falls back to legacy CurrentStep
     /// for pre-7c-3 cached summaries that don't carry MesPhase yet.</summary>
-    private static string MesPhaseDisplay(WorkOrderSummary summary) =>
+    /// <summary>Chữ hiện cho người đứng máy. Không còn <c>static</c> vì phải hỏi
+    /// catalog theo ngôn ngữ đang bật. Đường lùi <c>CurrentStep</c> là từ vựng
+    /// LEGACY (<c>ProcessStepCode</c>), không nằm trong 15 nhãn đã chốt, nên
+    /// <c>PhaseText</c> trả nguyên token — giữ đúng hành vi cũ, không giả vờ
+    /// dịch được thứ chưa có nhãn.</summary>
+    private string MesPhaseDisplay(WorkOrderSummary summary) =>
         !string.IsNullOrEmpty(summary.MesPhase)
-            ? summary.MesPhase
-            : (string.IsNullOrEmpty(summary.CurrentStep) ? "—" : summary.CurrentStep);
+            ? PhaseText(summary.MesPhase)
+            : (string.IsNullOrEmpty(summary.CurrentStep) ? "—" : PhaseText(summary.CurrentStep));
 
     /// <summary>Maps canonical MesPhase → CSS class on the wo-card chip via the
     /// shared <see cref="CCL.MES.Hybrid.Client.Status.WoCardPhasePalette"/> (one

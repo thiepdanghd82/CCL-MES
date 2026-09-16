@@ -219,7 +219,7 @@ else
                                             <div class="md-mc-stat">
                                                 <div class="md-mc-stat-lbl">@T("machine.stat.produced")</div>
                                                 <div class="md-mc-stat-num">@(Produced(m).ToString("N0"))</div>
-                                                <div class="md-mc-stat-sub">@(m.ActiveMesPhase ?? "—")</div>
+                                                <div class="md-mc-stat-sub">@PhaseText(m.ActiveMesPhase)</div>
                                             </div>
                                         </div>
 
@@ -263,7 +263,7 @@ else
                             <div class="md-activity-row">
                                 <span class="md-activity-time">@(m.LastUpdatedAt?.ToLocalTime().ToString("HH:mm") ?? "—")</span>
                                 <span class="md-activity-text">
-                                    <strong>@m.Code</strong> · @m.ActiveWoNo · @m.ActiveMesPhase
+                                    <strong>@m.Code</strong> · @m.ActiveWoNo · @PhaseText(m.ActiveMesPhase)
                                 </span>
                             </div>
                         }
@@ -322,7 +322,7 @@ else
                 <h3 class="md-drawer-sub">@T("machine.drawer.activewo")</h3>
                 @if (_detail.ActiveWo is not null)
                 {
-                    <div class="md-kv"><span>@_detail.ActiveWo.WoNo</span><strong>@_detail.ActiveWo.MesPhase</strong></div>
+                    <div class="md-kv"><span>@_detail.ActiveWo.WoNo</span><strong>@PhaseText(_detail.ActiveWo.MesPhase)</strong></div>
                     <div class="md-kv"><span>@T("machine.drawer.progress")</span><strong>@RowProgress(_detail.ActiveWo)</strong></div>
                 }
                 else
@@ -349,7 +349,7 @@ else
                         <tbody>
                             @foreach (var w in _detail.RecentWos)
                             {
-                                <tr><td>@w.WoNo</td><td>@w.MesPhase</td><td>@RowProgress(w)</td></tr>
+                                <tr><td>@w.WoNo</td><td>@PhaseText(w.MesPhase)</td><td>@RowProgress(w)</td></tr>
                             }
                         </tbody>
                     </table>

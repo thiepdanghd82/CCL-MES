@@ -68,6 +68,20 @@ public sealed partial class TranslationCatalog
         // Multi-leg fork.
         Add("wo.fork.button",            "Tách công đoạn (multi-leg)",                  "Split legs (multi-leg)");
 
+        // Thanh 7 bước ở thẻ WO. Trước đây là mảng string[] khai cứng tiếng Anh
+        // trong WorkOrders.razor — người đứng máy đọc "Ready to Run" trong khi
+        // chip phase ngay bên cạnh đã là tiếng Việt. Từ ngữ bám theo 15 nhãn
+        // legs.phase.* đã chốt: bước 1 dùng đúng chữ của PREPRESS, bước 2 của
+        // SETTING, bước 5 của RUNNING — cùng một việc thì cùng một chữ.
+        // EN giữ NGUYÊN chuỗi cũ, không nhân dịp đổi luôn.
+        Add("wo.step.prepress",          "Chuẩn bị",                                    "Pre-press");
+        Add("wo.step.setting",           "Setup",                                       "OP Setting");
+        Add("wo.step.ipqc",              "IPQC",                                        "IPQC");
+        Add("wo.step.readytorun",        "Sẵn sàng chạy",                               "Ready to Run");
+        Add("wo.step.running",           "Đang chạy",                                   "Running");
+        Add("wo.step.fqc",               "FQC",                                         "FQC");
+        Add("wo.step.oqc",               "OQC",                                         "OQC");
+
         // Sidebar panels.
         Add("wo.side.currentstate",      "Trạng thái hiện tại",                         "Current State");
         Add("wo.side.phase",             "Công đoạn {0} / 7",                           "Phase {0} / 7");

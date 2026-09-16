@@ -85,7 +85,7 @@ else if (_data is not null)
                             <div>@r.ProductName</div>
                             @if (!string.IsNullOrEmpty(r.ProductCode)) { <div class="trace-sub">@r.ProductCode</div> }
                         </td>
-                        <td><span class="trace-chip trace-chip-pending">@r.CurrentMesPhase</span></td>
+                        <td><span class="trace-chip trace-chip-pending">@PhaseText(r.CurrentMesPhase)</span></td>
                         <td>
                             @foreach (var ph in TracePhase.All)
                             {
