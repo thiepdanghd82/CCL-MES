@@ -161,12 +161,21 @@ public sealed class WorkOrdersPageTests : TestContext
         // Closes the Catalyst feedback gap: the operator MUST see the
         // green banner with the FROM step + TO step the moment the
         // advance returns 200.
+        // Bất biến KHÔNG đổi: băng-rôn phải nói rõ TỪ bước nào SANG bước nào.
+        // Chỉ hình thức đổi — từ 17-09 hai vế đi qua PhaseText() nên hiện nhãn
+        // đọc được thay vì token legacy `Fqc`/`Oqc`. So với chuỗi lấy từ catalog
+        // để test không vỡ khi đổi ngôn ngữ, và vẫn đỏ nếu ai bỏ mất một vế.
+        var loc = Services.GetRequiredService<CCL.MES.Hybrid.Client.Localization.ITranslator>();
+        var fromLabel = loc.T("wo.legacystep.fqc");
+        var toLabel   = loc.T("wo.legacystep.oqc");
+
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='advance-success-banner']");
             Assert.Contains("Đã chuyển bước:", banner.TextContent);
-            Assert.Contains("Fqc", banner.TextContent);
-            Assert.Contains("Oqc", banner.TextContent);
+            Assert.Contains(fromLabel, banner.TextContent);
+            Assert.Contains(toLabel, banner.TextContent);
+            Assert.DoesNotContain("Fqc", banner.TextContent);   // token legacy không được lọt ra
         });
     }
 

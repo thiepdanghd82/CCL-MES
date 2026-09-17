@@ -100,5 +100,32 @@ public static class PhaseVisual
         };
     }
 
+    /// <summary>
+    /// Key i18n cho từ vựng LEGACY <c>ProcessStepCode</c> (8 giá trị) — tập KHÁC
+    /// với <c>MesPhase</c>, giữ ở đây để chỉ có MỘT chỗ tra "token → key nhãn".
+    ///
+    /// <para><b>Vì sao còn cần.</b> Băng-rôn "đã chuyển bước" ở <c>WorkOrders</c>
+    /// in <c>CurrentStep</c> — cột legacy mà server vẫn cập nhật song song với
+    /// <c>MesPhase</c>. Tới khi cutover A1 xong thì cột này biến mất; từ giờ tới
+    /// đó, người đứng máy vẫn đọc nó mỗi lần chuyển bước.</para>
+    ///
+    /// <para><b>Một trùng lặp có thật, và nó ĐÚNG:</b> <c>Running</c> chuẩn hoá
+    /// thành <c>RUNNING</c> — trùng một <c>MesPhase</c> và mang đúng cùng nghĩa.
+    /// Nên <see cref="LabelKey"/> đã giải được nó trước khi tới hàm này. Vẫn khai
+    /// key ở đây để phép kiểm phủ đủ 8 giá trị enum không có lỗ.</para>
+    /// </summary>
+    public static string? LegacyStepLabelKey(string? step) => Normalise(step) switch
+    {
+        "PREPRESSCHECK" => "wo.legacystep.prepresscheck",
+        "OPSETTING"     => "wo.legacystep.opsetting",
+        "IPQCAPPROVAL"  => "wo.legacystep.ipqcapproval",
+        "READYTORUN"    => "wo.legacystep.readytorun",
+        "RUNNING"       => "wo.legacystep.running",
+        "FQC"           => "wo.legacystep.fqc",
+        "OQC"           => "wo.legacystep.oqc",
+        "CLOSED"        => "wo.legacystep.closed",
+        _               => null,
+    };
+
     private static string Normalise(string? phase) => (phase ?? "").Trim().ToUpperInvariant();
 }

@@ -43,7 +43,11 @@ public abstract class LocalizedComponentBase : ComponentBase, IDisposable
     protected string PhaseText(string? phase)
     {
         if (string.IsNullOrWhiteSpace(phase)) return "—";
-        var key = PhaseVisual.LabelKey(phase);
+        // Thử từ vựng CHUẨN trước (MesPhase / LegPhase), rồi mới tới LEGACY
+        // ProcessStepCode. Thứ tự này quan trọng: `Running` có ở CẢ HAI tập và
+        // mang đúng cùng nghĩa, nên để tập chuẩn thắng là đúng — người đứng máy
+        // thấy một chữ duy nhất cho một trạng thái, bất kể server trả cột nào.
+        var key = PhaseVisual.LabelKey(phase) ?? PhaseVisual.LegacyStepLabelKey(phase);
         return key is null ? phase! : T(key);
     }
 

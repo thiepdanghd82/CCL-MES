@@ -82,6 +82,21 @@ public sealed partial class TranslationCatalog
         Add("wo.step.fqc",               "FQC",                                         "FQC");
         Add("wo.step.oqc",               "OQC",                                         "OQC");
 
+        // Từ vựng LEGACY `ProcessStepCode` (8 giá trị) — cột `CurrentStep` mà
+        // server vẫn cập nhật song song với MesPhase. Băng-rôn "đã chuyển bước"
+        // in nó, nên tới khi cutover A1 xong thì người đứng máy vẫn đọc nó.
+        // KHÔNG dùng namespace `wo.step.*` — chỗ đó đã là thanh 7 bước, trùng
+        // key là app chết ngay lúc khởi tạo catalog.
+        // Từ ngữ bám theo nhãn `legs.phase.*` đã chốt: cùng một việc, cùng một chữ.
+        Add("wo.legacystep.prepresscheck", "Chuẩn bị",                                  "Pre-press");
+        Add("wo.legacystep.opsetting",     "Setup",                                     "OP Setting");
+        Add("wo.legacystep.ipqcapproval",  "Duyệt IPQC",                                "IPQC approval");
+        Add("wo.legacystep.readytorun",    "Sẵn sàng chạy",                             "Ready to Run");
+        Add("wo.legacystep.running",       "Đang chạy",                                 "Running");
+        Add("wo.legacystep.fqc",           "Kiểm FQC",                                  "FQC check");
+        Add("wo.legacystep.oqc",           "Kiểm OQC",                                  "OQC check");
+        Add("wo.legacystep.closed",        "Đã đóng",                                   "Closed");
+
         // Sidebar panels.
         Add("wo.side.currentstate",      "Trạng thái hiện tại",                         "Current State");
         Add("wo.side.phase",             "Công đoạn {0} / 7",                           "Phase {0} / 7");

@@ -87,6 +87,57 @@ public sealed class PhaseLabelCoverageTests
             "Nhãn tiếng Việt vẫn là token thô:\n  " + string.Join("\n  ", offenders));
     }
 
+    // ── từ vựng LEGACY ProcessStepCode (8 giá trị) ────────────────────────────
+    // Băng-rôn "đã chuyển bước" in cột `CurrentStep`, nên tới khi cutover A1 xong
+    // thì người đứng máy vẫn đọc nó mỗi lần chuyển bước. Duyệt thẳng enum, KHÔNG
+    // liệt kê tay — thêm giá trị thứ 9 mà quên nhãn thì phải ĐỎ.
+
+    [Fact]
+    public void Every_legacy_ProcessStepCode_has_a_label_key()
+    {
+        var missing = Enum.GetNames<CCL.MES.Domain.ProcessStepCode>()
+            .Where(n => PhaseVisual.LegacyStepLabelKey(n) is null)
+            .ToList();
+
+        Assert.True(missing.Count == 0,
+            "ProcessStepCode không có key nhãn — băng-rôn chuyển bước sẽ in token thô:\n  " +
+            string.Join("\n  ", missing) +
+            "\nThêm vào PhaseVisual.LegacyStepLabelKey + TranslationCatalog.WorkOrders (đủ VI và EN).");
+    }
+
+    [Fact]
+    public void Every_legacy_step_key_has_both_languages_and_is_not_the_raw_token()
+    {
+        var catalog = new TranslationCatalog();
+        var offenders = new List<string>();
+
+        foreach (var name in Enum.GetNames<CCL.MES.Domain.ProcessStepCode>())
+        {
+            var key = PhaseVisual.LegacyStepLabelKey(name);
+            if (key is null) continue;   // đã có test riêng ở trên
+
+            var vi = catalog.Lookup(key, LanguageCode.Vietnamese);
+            var en = catalog.Lookup(key, LanguageCode.English);
+            if (string.IsNullOrWhiteSpace(vi)) offenders.Add($"{name} → {key} [VI thiếu]");
+            if (string.IsNullOrWhiteSpace(en)) offenders.Add($"{name} → {key} [EN thiếu]");
+            if (string.Equals(vi?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                offenders.Add($"{name} → VI vẫn là token thô \"{vi}\"");
+        }
+
+        Assert.True(offenders.Count == 0,
+            "Nhãn bước legacy chưa dùng được:\n  " + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
+    public void Running_resolves_through_the_CANONICAL_vocabulary_not_the_legacy_one()
+    {
+        // `Running` có ở CẢ HAI tập token và mang đúng cùng nghĩa. Thứ tự tra
+        // phải để MesPhase thắng, để một trạng thái chỉ có MỘT chữ trên màn hình
+        // bất kể server trả cột nào. Test này khoá đúng thứ tự đó.
+        Assert.Equal("legs.phase.running", PhaseVisual.LabelKey("Running"));
+        Assert.Equal("wo.legacystep.running", PhaseVisual.LegacyStepLabelKey("Running"));
+    }
+
     [Theory]
     [InlineData("wo.step.prepress")]
     [InlineData("wo.step.setting")]

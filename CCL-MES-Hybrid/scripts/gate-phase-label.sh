@@ -7,6 +7,11 @@
 # PhaseVisual.LabelKey biết đường tra; surface chỉ việc gọi PhaseText() ở
 # LocalizedComponentBase, hoặc dựng <StatusPill>.
 #
+# MỞ RỘNG 17-09-2026: gác thêm `CurrentStep` — từ vựng LEGACY ProcessStepCode
+# (8 giá trị). Bản đầu chỉ gác MesPhase/LegPhase nên băng-rôn "đã chuyển bước"
+# vẫn in `PrePressCheck` / `OpSetting` ra cho người đứng máy đọc, sống sót qua
+# đúng cái đợt sinh ra gate này. Cùng một lớp lỗi, chỉ khác tập token.
+#
 # VÌ SAO CẦN GATE RIÊNG, trong khi đã có gate-i18n-parity. Gate kia bắt CHUỖI
 # TIẾNG VIỆT nằm trần trong .razor. Nhưng "IPQC_WAIT" không phải tiếng Việt, và
 # "Ready to Run" khai cứng cũng không — nên suốt từ P10.7 tới 2026-09-16 có 8
@@ -30,7 +35,7 @@ BASELINE=0
 # Bắt: một biểu thức Razor `@...MesPhase` / `@...LegPhase` đổ THẲNG vào markup.
 # KHÔNG bắt `@if (x.MesPhase == …)` hay `@onclick="… x.MesPhase …"` vì sau `@`
 # là `if`/`onclick` rồi tới ký tự ngoài lớp [A-Za-z0-9_.] nên chuỗi đứt.
-RX='@\(?[A-Za-z_][A-Za-z0-9_.]*(MesPhase|LegPhase)\b'
+RX='@\(?[A-Za-z_][A-Za-z0-9_.]*(MesPhase|LegPhase|CurrentStep)\b'
 
 # Dòng có một trong các dấu hiệu này là ĐÃ đi đúng đường — bỏ qua:
 #   PhaseText( · <StatusPill · PhaseVisual.  → đã qua catalog
@@ -42,7 +47,7 @@ RX='@\(?[A-Za-z_][A-Za-z0-9_.]*(MesPhase|LegPhase)\b'
 # HẠN CHẾ ĐÃ BIẾT, nói thẳng: lọc theo DÒNG, không theo biểu thức. Một dòng vừa
 # so sánh phase vừa in token thô sẽ lọt. Chấp nhận, vì phương án kia là parse
 # Razor trong bash. Lưới thứ hai là PhaseLabelCoverageTests + review.
-SAFE='PhaseText\(|<StatusPill|PhaseVisual\.|data-[a-z-]*phase=|(MesPhase|LegPhase)[[:space:]]*[=!]='
+SAFE='PhaseText\(|<StatusPill|PhaseVisual\.|data-[a-z-]*(phase|step)=|(MesPhase|LegPhase|CurrentStep)[[:space:]]*[=!]='
 
 # ── self-test ─────────────────────────────────────────────────────────────────
 if [ "${1:-}" = "--self-test" ]; then

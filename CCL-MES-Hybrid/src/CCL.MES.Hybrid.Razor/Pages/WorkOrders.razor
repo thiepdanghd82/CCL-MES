@@ -228,8 +228,8 @@ else
                         @if (_advanceResult?.Ok == true && _showSuccessBanner)
                         {
                             <div class="wo-card-success" data-testid="advance-success-banner">
-                                ✔ @T("wo.advance.success"): <strong>@(_advanceFromStep ?? "—")</strong>
-                                → <strong>@_advanceResult.CurrentStep</strong>
+                                ✔ @T("wo.advance.success"): <strong>@PhaseText(_advanceFromStep)</strong>
+                                → <strong>@PhaseText(_advanceResult.CurrentStep)</strong>
                             </div>
                         }
                         else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
