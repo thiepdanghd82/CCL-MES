@@ -34,7 +34,26 @@ REPO="$(cd "$ROOT/.." && pwd)"          # gốc repo
 APIDIR="$ROOT/src/CCL.MES.Api"
 DB="$REPO/data/ccl_mes.db"
 URL="http://localhost:5100"
-LOG="/tmp/ccl-api-5100.log"
+# ─────────────────────────────────────────────────────────────────────────────
+# LOG — KHÔNG để ở /tmp. macOS dọn /tmp theo chu kỳ, nên log sản xuất đặt ở đó
+# là log biến mất đúng lúc cần nhất: máy vừa khởi động lại sau sự cố thì không
+# còn gì để điều tra. Đây CÙNG MỘT bẫy L65 mà dự án đã trả giá với backup
+# Phase A của P12 (ba bản backup đặt /tmp, vài ngày sau mất sạch).
+#
+# Xoay vòng theo NGÀY: mỗi ngày một file, giữ LOG_KEEP_DAYS ngày gần nhất.
+# launchd ghi thẳng vào file của ngày hôm nay; cmd_log/status đọc file ấy.
+LOG_DIR="$REPO/data/Logs"
+LOG_KEEP_DAYS="${LOG_KEEP_DAYS:-30}"
+mkdir -p "$LOG_DIR" 2>/dev/null
+LOG="$LOG_DIR/ccl-api-5100.$(date +%Y%m%d).log"
+
+# Dọn bản cũ hơn LOG_KEEP_DAYS ngày. Chạy mỗi lần gọi script — rẻ, và không
+# cần thêm một cron nữa để trông một cron.
+find "$LOG_DIR" -name 'ccl-api-5100.*.log' -type f -mtime "+$LOG_KEEP_DAYS" -delete 2>/dev/null
+
+# File log MỚI NHẤT (không nhất thiết là hôm nay — máy có thể vừa bật lại).
+LOG_LATEST="$(ls -t "$LOG_DIR"/ccl-api-5100.*.log 2>/dev/null | head -1)"
+[ -n "$LOG_LATEST" ] || LOG_LATEST="$LOG"
 
 # Release ưu tiên; chưa có thì dùng Debug và nói rõ.
 BIN_REL="$APIDIR/bin/Release/net10.0/CCL.MES.Api"
@@ -164,7 +183,7 @@ cmd_restart() {
   sleep 5; cmd_status
 }
 cmd_stop()    { launchctl bootout "gui/$UID/$LABEL" 2>/dev/null; say "[i] đã dừng (cài lại bằng: install)"; }
-cmd_log()     { tail -f "$LOG"; }
+cmd_log()     { echo "[i] $LOG_LATEST"; tail -f "$LOG_LATEST"; }
 
 cmd_status() {
   local pid port code
@@ -178,7 +197,7 @@ cmd_status() {
   if [ "${code:-000}" != "200" ]; then
     say ""
     say "─── 15 dòng log cuối (bỏ EF JSON) ───"
-    grep -v '^{"EventId"' "$LOG" 2>/dev/null | tail -15
+    grep -v '^{"EventId"' "$LOG_LATEST" 2>/dev/null | tail -15
     return 1
   fi
 }

@@ -198,7 +198,24 @@ Phần lớn có lý do chính đáng — `AuthController` (đăng nhập/refres
 
 ---
 
-## A3 — Observability
+## A3 — Observability — **MÔ TẢ CŨ SAI, đã đo lại 17-09-2026**
+
+> ⚠ Mục này từng ghi "không OpenTelemetry, không Serilog, không metrics endpoint"
+> rồi kết luận hệ chưa có gì. Đúng về GÓI, sai về NĂNG LỰC: `Observability/` đã có
+> `MesLogScope` (`trace_id`·`actor`), `MesRequestContext` (`wo_no`·`work_center`),
+> `MesTelemetry` (ActivitySource + 3 counter), middleware đã nối, `AddJsonConsole`
+> `IncludeScopes=true`. Chạy thật ra `api_request … -> 401 in 1.4ms` kèm scope.
+>
+> **Khoảng trống thật, đã đóng 17-09:** log nằm ở `/tmp` — macOS dọn, nên sự cố
+> sau lần khởi động lại là không còn gì để điều tra (L65 tái xuất). Nay ở
+> `data/Logs/`, xoay vòng theo ngày, gate 30 canh. Xem **L103**.
+>
+> **Còn lại của A3:** counter đã có nhưng **không có đường đọc** (endpoint /
+> exporter) — đó mới là phần cần Henry, đang nằm trong tờ trình STOP-gate.
+> Trường `ca` cố ý CHƯA thêm: `MesRequestContext` đã ghi rõ nó chờ `ShiftCalendar`
+> data-driven, không bê logic hardcode 06/14/22 từ `TopBar.razor` sang.
+
+### Mô tả gốc (giữ lại để đối chiếu)
 
 **Vấn đề.** `grep` toàn bộ `.csproj`: **không** OpenTelemetry, **không** Serilog,
 **không** metrics endpoint. Hệ chạy 3 ca mà mọi sự cố phải điều tra bằng `lsof`.

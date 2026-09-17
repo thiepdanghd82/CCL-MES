@@ -27,6 +27,7 @@
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"; cd "$REPO"
 MIG=src/CCL.MES.Infrastructure/Migrations/20260723044539_AddRoutingLegDag.cs
+# ok-tmp: DB bản sao dùng-một-lần để verify, KHÔNG phải DB live
 DB="/tmp/p11-verify-$$.db"; LIVE="${MES_DB_PATH:-$REPO/data/ccl_mes.db}"
 FAIL=0; STEP=0; TOTAL=9
 echo "[ctx] REPO=$REPO"; echo "[ctx] live DB=$LIVE $( [ -f "$LIVE" ] && shasum -a 256 "$LIVE" | cut -c1-8) — NEVER touched"

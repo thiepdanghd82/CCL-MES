@@ -1275,6 +1275,18 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Còn nợ, nói rõ chứ không giấu** | Băng-rôn "đã chuyển bước" ở `WorkOrders.razor` in `CurrentStep` — đó là từ vựng LEGACY `ProcessStepCode`, KHÁC tập 15 nhãn, nên `PhaseText` trả nguyên token. Không nhân dịp này dịch bừa: cần một bảng nhãn riêng cho `ProcessStepCode`, hoặc bỏ hẳn khi cutover A1 xong. |
 
 
+### L103 — L65 tái xuất ở mặt LOG, và một mục backlog mô tả sai thứ đã có sẵn
+
+| | |
+|---|---|
+| **Triệu chứng** | Backlog A3 ghi "quét toàn bộ `.csproj`: **không** OpenTelemetry, **không** Serilog, **không** metrics endpoint" và kết luận hệ chưa có gì để điều tra sự cố. |
+| **Root cause (đo, không đoán)** | Câu đó đúng về GÓI nhưng sai về NĂNG LỰC. Đọc code trước khi thêm: `Observability/` đã có `MesLogScope` (`trace_id` · `actor`) · `MesRequestContext` (`wo_no` · `work_center`) · `MesTelemetry` (ActivitySource + Meter với 3 counter) · `RequestObservabilityMiddleware` đã nối vào pipeline · `AddJsonConsole(IncludeScopes=true)`. Chạy thật một request: `api_request GET /api/v2/work-orders -> 401 in 1.4ms` kèm scope `{"trace_id":"…","actor":"anonymous"}`. Tức A3 **phần lớn đã xong** từ đợt trước, không ai cập nhật backlog. |
+| **Khoảng trống THẬT, và nó nghiêm trọng hơn** | Log sản xuất nằm ở **`/tmp/ccl-api-5100.log`**. macOS dọn `/tmp`. Hệ chạy ba ca; sự cố tiếp theo — đúng lúc máy vừa khởi động lại — sẽ không còn gì để điều tra. Đây **CÙNG MỘT bẫy L65** đã trả giá với backup Phase A của P12, chỉ đổi mặt: lần đó là bằng chứng migration, lần này là log vận hành. |
+| **Fix** | `api-service.sh`: `LOG` chuyển sang `data/Logs/ccl-api-5100.<ngày>.log`, xoay vòng theo ngày, giữ `LOG_KEEP_DAYS` (mặc định 30), tự dọn bản cũ mỗi lần gọi script. `cmd_log`/`status` đọc file MỚI NHẤT chứ không phải file của hôm nay (máy có thể vừa bật lại). `data/Logs/` vào `.gitignore`. |
+| **Một thứ tôi KHÔNG làm, cố ý** | Khuyến nghị A3 có nêu trường `ca`. Nhưng `MesRequestContext` ghi rõ: *"Deliberately NOT carrying a shift code… Shift lands in Đợt 3 on a real `ShiftCalendar` — data-driven, per site — not on a hardcoded UTC+7 06/14/22 split."* Thêm `shift` bằng cách bê logic hardcode từ `TopBar.razor` sang là **đè lên một quyết định thiết kế đã cân nhắc và đã ghi lý do**. Để nguyên. |
+| **Cơ chế chặn tái phát** | Gate 30 `gate-no-tmp-state.sh` — biến `LOG`/`BACKUP`/`DB`/`SNAPSHOT` trỏ `/tmp` trong script vận hành ⇒ đỏ. Phân biệt đúng thứ **vứt đi** (`mktemp`, `/tmp/*-design.db` mà `cmes-migration-abc` BẮT BUỘC dùng) với thứ **phải giữ**; miễn trừ khai `# ok-tmp: <lý do>` ngay trên dòng. Self-test kiểm hai chiều. **Lần chạy đầu gate bắt luôn CHÍNH NÓ** (fixture trong heredoc) — đã loại trừ file gate; và bắt 3 script dùng `/tmp/...$$` hợp lệ, nay đã khai `# ok-tmp`. |
+
+
 ----
 
 ## Adding a new lesson

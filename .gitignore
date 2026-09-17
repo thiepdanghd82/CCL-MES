@@ -46,3 +46,6 @@ data/Library/
 # Script RecoverAdmin chạy từ repo-root nên log rơi ra đây, không phải
 # scripts/RecoverAdmin/ như dòng đã khai ở trên.
 /recover.audit.log
+
+# Log vận hành của API — sinh lại được, không phải source.
+data/Logs/

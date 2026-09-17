@@ -46,6 +46,7 @@ GATES=(
   "endpoint-policy:gate-endpoint-policy.sh:2026-09-15 endpoint ghi phải tuyên bố phân quyền — chặn cổng mở mà không ai biết"
   "phase-label:gate-phase-label.sh:2026-09-16 token phase không được in thẳng — chặn người đứng máy phải đọc IPQC_WAIT"
   "wo-child-fk:gate-wo-child-fk.sh:2026-09-16 bảng con WorkOrders phải có FK, bằng chứng QC phải Restrict"
+  "no-tmp-state:gate-no-tmp-state.sh:2026-09-17 log/backup/DB không được đặt ở /tmp — L65 tái xuất ở mặt log"
 )
 
 total="${#GATES[@]}"

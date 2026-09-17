@@ -60,6 +60,7 @@ HYBRID_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO="$(cd "$HYBRID_ROOT/.." && pwd)"
 LIVE_DB="${MES_DB_PATH:-$REPO/data/ccl_mes.db}"
 DEMO_DIR="$REPO/data/demo"; DEMO_DB="$DEMO_DIR/p11-tape-demo.db"
+# ok-tmp: log của API dựng tạm cho demo seed, chết theo tiến trình ($$)
 LOG="/tmp/seed-p11-tape-demo-api-$$.log"
 M="--max-time 30"
 PASS=0; FAIL=0; API_PID=""; DRIFT=0

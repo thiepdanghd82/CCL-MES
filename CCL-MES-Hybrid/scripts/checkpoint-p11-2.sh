@@ -16,6 +16,7 @@ PORT=5123
 API="http://127.0.0.1:$PORT"
 SRC_DB="${MES_DB_PATH:-$REPO/data/ccl_mes.db}"
 CK_DB="/tmp/p11-2-checkpoint-$$.db"
+# ok-tmp: log của API dựng tạm trong checkpoint, chết theo tiến trình ($$)
 LOG="/tmp/p11-2-checkpoint-api-$$.log"
 TOTAL=11; STEP=0; FAILS=0
 API_PID=""
