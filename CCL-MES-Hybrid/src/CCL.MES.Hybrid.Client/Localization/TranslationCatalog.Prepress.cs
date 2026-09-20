@@ -31,5 +31,9 @@ public sealed partial class TranslationCatalog
         Add("prepress.advance.button",      "Bắt đầu Cài đặt (chuyển bước)",                                   "Start Setting (advance step)");
         Add("prepress.advance.hint",        "Hoàn tất cả 3 danh mục kiểm (Vật tư + Bản in + Dao) → nút này sẽ được kích hoạt.",
                                             "Complete all 3 checklists (Material + Plate + Cutter) → this button becomes active.");
+
+        // Chế độ khắc phục muộn — WO đã qua Pre-press, chỉ còn Special Accept.
+        Add("prepress.remediation.body",    "Lệnh đã qua bước Chuẩn bị nên chỉ còn sửa được bằng Chấp nhận đặc biệt — cần kỹ sư hoặc tổ trưởng, và bắt buộc chọn mã lỗi. Muốn xác nhận lại bình thường thì phải đưa lệnh về bước Chuẩn bị.",
+                                            "This WO is past Pre-press, so Special Accept is the only remaining fix — it needs an engineer or supervisor and a defect code. To confirm a line normally, the WO must go back to Pre-press.");
     }
 }

@@ -29,6 +29,92 @@ public sealed class WoSummaryReportBuilderTests
         return b.Build();
     }
 
+    // ── phase breakdown (§5.7) ────────────────────────────────────
+
+    /// <summary>Không có span (WO chạy trước migration) ⇒ khối rỗng, KHÔNG
+    /// bịa số. Thà thiếu còn hơn dựng "PREPRESS 40 ngày" từ CreatedAt.</summary>
+    [Fact]
+    public void Phase_breakdown_is_empty_when_there_are_no_spans()
+    {
+        var report = WoSummaryReportBuilder.Build(Base());
+        Assert.Empty(report.PhaseBreakdown);
+        Assert.Equal(0, report.PhaseTotalSeconds);
+    }
+
+    /// <summary>
+    /// THE regression: WO vào PREPRESS hai lần (rework). Tổng phải cộng CẢ
+    /// HAI lượt, `LastSeconds` chỉ lượt cuối, và `VisitCount = 2` — chỉ số
+    /// rework mà trước khi có bảng span thì vô hình hoàn toàn.
+    /// </summary>
+    [Fact]
+    public void Phase_breakdown_sums_every_visit_and_reports_the_rework_count()
+    {
+        var report = WoSummaryReportBuilder.Build(Base(b =>
+        {
+            b.PhaseSpans.Add(new WoSummaryPhaseSpanInput("PREPRESS", 1, T0, T0.AddMinutes(30)));
+            b.PhaseSpans.Add(new WoSummaryPhaseSpanInput("IPQC_WAIT", 1, T0.AddMinutes(30), T0.AddMinutes(40)));
+            b.PhaseSpans.Add(new WoSummaryPhaseSpanInput("PREPRESS", 2, T0.AddMinutes(40), T0.AddMinutes(50)));
+        }));
+
+        var prepress = Assert.Single(report.PhaseBreakdown, r => r.Phase == "PREPRESS");
+        Assert.Equal(2400, prepress.TotalSeconds);   // 30' + 10'
+        Assert.Equal(600, prepress.LastSeconds);     // chỉ lượt 2
+        Assert.Equal(2, prepress.VisitCount);        // ← đã bị trả về
+        Assert.False(prepress.IsOpen);
+
+        // Thứ tự theo lần vào ĐẦU TIÊN — đọc ra đúng dòng chảy WO đã đi.
+        Assert.Equal(new[] { "PREPRESS", "IPQC_WAIT" },
+                     report.PhaseBreakdown.Select(r => r.Phase).ToArray());
+        Assert.Equal(3000, report.PhaseTotalSeconds); // 2400 + 600
+    }
+
+    /// <summary>Công đoạn còn ĐANG MỞ chạy tới `now`, y như khoảng run mở.</summary>
+    [Fact]
+    public void Open_phase_runs_to_now()
+    {
+        var report = WoSummaryReportBuilder.Build(Base(b =>
+        {
+            b.Now = T0.AddHours(2);
+            b.PhaseSpans.Add(new WoSummaryPhaseSpanInput("OQC_PENDING", 1, T0, null));
+        }));
+
+        var oqc = Assert.Single(report.PhaseBreakdown);
+        Assert.Equal(7200, oqc.TotalSeconds);
+        Assert.True(oqc.IsOpen);
+    }
+
+    /// <summary>
+    /// RANH GIỚI: thời gian công đoạn KHÔNG được chạm công thức OEE. Đây là
+    /// hàng đợi + kiểm tra, không phải machine run time; gộp vào mẫu số
+    /// availability là âm thầm định nghĩa lại một chỉ số đã công bố (§5.7).
+    /// Ai cộng vào sẽ thấy test này đỏ.
+    /// </summary>
+    [Fact]
+    public void Phase_breakdown_never_moves_the_oee_numbers()
+    {
+        static WoSummaryReportInput WithRun(Action<WoSummaryReportInputBuilder>? extra = null) =>
+            Base(b =>
+            {
+                b.Sessions.Add(new WoSummarySessionSpan(T0, T0.AddHours(1)));
+                b.PauseEvents.Add(new WoSummaryPauseSpan("PA-JAM", T0.AddHours(1), T0.AddHours(2)));
+                extra?.Invoke(b);
+            });
+
+        var without = WoSummaryReportBuilder.Build(WithRun());
+        var with = WoSummaryReportBuilder.Build(WithRun(b =>
+        {
+            // 10 giờ nằm hàng đợi — thừa sức kéo availability xuống nếu bị gộp.
+            b.PhaseSpans.Add(new WoSummaryPhaseSpanInput("FQC_PENDING", 1, T0, T0.AddHours(10)));
+        }));
+
+        Assert.Equal(without.Oee.Availability, with.Oee.Availability);
+        Assert.Equal(without.Runtime.RunSeconds, with.Runtime.RunSeconds);
+        Assert.Equal(without.Runtime.PauseSeconds, with.Runtime.PauseSeconds);
+        Assert.Equal(without.Oee.Oee, with.Oee.Oee);
+        // …mà khối riêng thì vẫn có số.
+        Assert.Equal(36000, with.PhaseTotalSeconds);
+    }
+
     // ── availability ──────────────────────────────────────────────
 
     [Fact]
@@ -302,6 +388,7 @@ public sealed class WoSummaryReportBuilderTests
         public DateTime Now { get; set; } = T0.AddHours(4);
         public List<WoSummarySessionSpan> Sessions { get; } = new();
         public List<WoSummaryPauseSpan> PauseEvents { get; } = new();
+        public List<WoSummaryPhaseSpanInput> PhaseSpans { get; } = new();
         public bool WorkCenterResolved { get; set; }
         public double? IdealSpeedPcsH { get; set; }
         public WoSummaryIpqcInput? Ipqc { get; set; }
@@ -320,6 +407,7 @@ public sealed class WoSummaryReportBuilderTests
             Now = Now,
             Sessions = Sessions,
             PauseEvents = PauseEvents,
+                PhaseSpans = PhaseSpans,
             WorkCenterResolved = WorkCenterResolved,
             IdealSpeedPcsH = IdealSpeedPcsH,
             Ipqc = Ipqc,

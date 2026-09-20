@@ -21,6 +21,9 @@ public sealed partial class TranslationCatalog
         Add("running.dismiss",                     "Bỏ qua",                                                      "Dismiss");
 
         Add("running.ipqc.approved.title",         "IPQC đã duyệt — bắt đầu chạy",                                "IPQC approved — start running");
+
+        Add("running.material.remediation.title", "Khắc phục vật tư đang chặn máy chạy",
+                                                 "Fix the material blocking the run");
         Add("running.start",                       "Bắt đầu chạy",                                                "Start running");
 
         Add("running.counter.done",                "Đạt",                                                         "Done");
@@ -50,5 +53,13 @@ public sealed partial class TranslationCatalog
         Add("running.deferred.cancelled.title",    "WO đã huỷ",                                                   "WO cancelled");
         Add("running.deferred.cancelled.body",     "WO đã bị huỷ. Không thể chạy hoặc ghi nhận thêm sản lượng.",  "The WO has been cancelled. It cannot be run or accept further output.");
         Add("running.deferred.scan.hint",          "Quét WO khác để bắt đầu công việc mới.",                      "Scan another WO to start new work.");
+
+        // Đồng hồ chạy máy (OEE). "Chạy máy" = tổng các phiên chạy, ĐÃ TRỪ
+        // thời gian tạm dừng — pause đóng phiên nên hai con số rời nhau.
+        Add("running.timer.run.label",             "Thời gian chạy máy",                                          "Machine run time");
+        Add("running.timer.pause.label",           "Đã tạm dừng",                                                 "Paused");
+        Add("running.timer.availability.label",    "Khả dụng",                                                    "Availability");
+        Add("running.timer.paused.now",            "Đang tạm dừng",                                               "Paused now");
+        Add("running.timer.hint",                  "Tổng các phiên chạy, không tính lúc tạm dừng.",               "Total of all run sessions, excluding paused time.");
     }
 }

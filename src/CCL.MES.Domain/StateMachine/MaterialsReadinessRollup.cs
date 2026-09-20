@@ -25,6 +25,29 @@ namespace CCL.MES.Domain.StateMachine;
 /// distinguish "no snapshot yet → defer to legacy bool" from "snapshot
 /// exists but not all rows OK → MaterialsReady = false".
 /// </summary>
+/// <summary>
+/// Lý do một dòng vật tư chưa cho máy chạy. Hai giá trị chặn là HAI việc phải
+/// làm khác nhau, nên chúng không được gộp vào một mã lỗi:
+/// <list type="bullet">
+///   <item><see cref="NotChecked"/> — dòng chưa được xác nhận ở Pre-press.
+///   Việc phải làm: quét và xác nhận dòng đó, KHÔNG phải đổi lô.</item>
+///   <item><see cref="LotNotReleased"/> — dòng đã Ok nhưng lô đang gắn không
+///   ở trạng thái Released (hoặc chưa tra được về lô nào). Việc phải làm: thay
+///   lô, hoặc xin chấp nhận đặc biệt.</item>
+/// </list>
+/// </summary>
+public enum MaterialLineBlock
+{
+    /// <summary>Dòng sẵn sàng — không chặn.</summary>
+    None = 0,
+
+    /// <summary>Chưa ai xác nhận dòng này ở Pre-press (Pending / NG).</summary>
+    NotChecked = 1,
+
+    /// <summary>Đã Ok nhưng lô không Released, và không có đường miễn nào.</summary>
+    LotNotReleased = 2,
+}
+
 public static class MaterialsReadinessRollup
 {
     /// <summary>
@@ -77,12 +100,32 @@ public static class MaterialsReadinessRollup
     /// ít nhất chỗ này đọc ra được là hệ CHƯA phủ, thay vì tưởng đã phủ.</para>
     /// </param>
     public static bool IsLineReady(WoMaterial m, string? lotStatus, bool isInHouse = false)
+        => Classify(m, lotStatus, isInHouse) == MaterialLineBlock.None;
+
+    /// <summary>
+    /// VÌ SAO dòng chưa sẵn sàng — không chỉ CÓ hay KHÔNG.
+    ///
+    /// <para><b>Vì sao tách ra khỏi <see cref="IsLineReady"/>.</b> Một bool
+    /// gộp hai nguyên nhân khác hẳn nhau vào một câu trả lời, và cổng
+    /// <c>/run/start</c> đã phải đoán: nó báo MỌI dòng không sẵn sàng là "lô
+    /// không còn được IQC thả". Đo trên live 2026-09-18, WO-TEST-02: hai dòng
+    /// chặn máy là <c>Status=Pending</c> — chưa ai kiểm — mà người đứng máy
+    /// được bảo đi thay lô và xin chấp nhận đặc biệt. Cả hai đều sai việc, nên
+    /// họ bấm lại mãi không qua. Sai ở đây tốn nguyên một lượt chạy.</para>
+    ///
+    /// <para>Thứ tự nhánh GIỮ NGUYÊN của <see cref="IsLineReady"/> cũ: Special
+    /// Accept và miễn-cổng-lô vẫn thắng trước khi lô bị soi.</para>
+    /// </summary>
+    public static MaterialLineBlock Classify(
+        WoMaterial m, string? lotStatus, bool isInHouse = false)
     {
-        if (m.Status != PrepressCheckStatus.Ok) return false;
-        if (!string.IsNullOrWhiteSpace(m.NgReasonCode)) return true;   // đã Special Accept
-        if (isInHouse) return true;                                    // bán thành phẩm — xem <param>
+        if (m.Status != PrepressCheckStatus.Ok) return MaterialLineBlock.NotChecked;
+        if (!string.IsNullOrWhiteSpace(m.NgReasonCode)) return MaterialLineBlock.None; // đã Special Accept
+        if (isInHouse) return MaterialLineBlock.None;                                  // bán thành phẩm — xem <param>
         return string.Equals(lotStatus, nameof(MaterialLotStatus.Released),
-                             StringComparison.OrdinalIgnoreCase);
+                             StringComparison.OrdinalIgnoreCase)
+            ? MaterialLineBlock.None
+            : MaterialLineBlock.LotNotReleased;
     }
 
     /// <summary>

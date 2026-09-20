@@ -754,6 +754,64 @@ public sealed class RunningSurfaceControllerTests : IClassFixture<MesApiFactory>
         Assert.Contains(resp.Headers.ETag?.Tag ?? "", $"\"{etag}\"");
     }
 
+    /// <summary>
+    /// Wire-mirror (R7.3) của <c>RunningClockTests</c>: đồng hồ giờ máy trên
+    /// màn hình chỉ đúng nếu server thật sự gửi giây ĐÃ CHỐT của các phiên đã
+    /// đóng. Pause đóng phiên + Resume mở phiên mới, nên WO chạy cả ngày có
+    /// nhiều phiên đóng; bỏ chúng đi là báo thiếu giờ máy và tụt OEE.
+    /// </summary>
+    [Fact]
+    public async Task Get_running_surface_banks_seconds_from_closed_sessions()
+    {
+        var (wo, _) = await SeedWoAsync("RUNNING");
+        await SeedRunSessionAsync(wo, open: false);   // đã đóng: 10' → 1' trước = 9'
+        var client = await OperatorClientAsync("op-clock-banked");
+
+        var view = await (await client.GetAsync($"/api/v2/work-orders/{wo}/running-surface"))
+            .Content.ReadFromJsonAsync<RunningSurfaceView>();
+
+        Assert.NotNull(view);
+        // Phiên đã đóng dài 9 phút (540s). Nới biên cho thời gian chạy test.
+        Assert.InRange(view!.RunSecondsClosed, 530, 560);
+        Assert.Equal(0, view.PauseSecondsClosed);
+    }
+
+    /// <summary>Khoảng CÒN MỞ không được tính vào phần đã chốt — client tự
+    /// cộng nó mỗi giây. Chốt luôn ở server thì đồng hồ nhảy hai lần.</summary>
+    [Fact]
+    public async Task Get_running_surface_excludes_the_open_session_from_banked_seconds()
+    {
+        var (wo, _) = await SeedWoAsync("RUNNING");
+        await SeedRunSessionAsync(wo, open: true);
+        var client = await OperatorClientAsync("op-clock-open");
+
+        var view = await (await client.GetAsync($"/api/v2/work-orders/{wo}/running-surface"))
+            .Content.ReadFromJsonAsync<RunningSurfaceView>();
+
+        Assert.NotNull(view);
+        Assert.Equal(0, view!.RunSecondsClosed);
+        Assert.NotNull(view.ActiveSessionStartAt);
+    }
+
+    /// <summary>Lần dừng CÒN MỞ cũng vậy: không vào PauseSecondsClosed, nhưng
+    /// phải gửi ActivePauseStartAt để client tick tiếp.</summary>
+    [Fact]
+    public async Task Get_running_surface_excludes_the_open_pause_from_banked_seconds()
+    {
+        var (wo, _) = await SeedWoAsync("PAUSED");
+        var session = await SeedRunSessionAsync(wo, open: false);
+        await SeedActivePauseAsync(wo, session);
+        var client = await OperatorClientAsync("op-clock-paused");
+
+        var view = await (await client.GetAsync($"/api/v2/work-orders/{wo}/running-surface"))
+            .Content.ReadFromJsonAsync<RunningSurfaceView>();
+
+        Assert.NotNull(view);
+        Assert.Equal(0, view!.PauseSecondsClosed);
+        Assert.NotNull(view.ActivePauseStartAt);
+        Assert.InRange(view.RunSecondsClosed, 530, 560);
+    }
+
     [Fact]
     public async Task Get_running_surface_returns_404_for_unknown_wo()
     {

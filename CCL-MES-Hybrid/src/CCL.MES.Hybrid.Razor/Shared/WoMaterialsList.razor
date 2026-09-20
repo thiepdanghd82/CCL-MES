@@ -141,7 +141,7 @@
                                ConfirmToggle. Special Accept stays a separate
                                op-btn-special (RBAC-by-omission), never in the toggle. *@
                             <ConfirmToggle Status="@row.Status"
-                                           Disabled="@Busy"
+                                           Disabled="@(Busy || SpecialAcceptOnly)"
                                            OkDisabled="@isOk"
                                            NgDisabled="@(ScrapReasons.Count == 0)"
                                            NgTitle="@(ScrapReasons.Count == 0 ? T("womat.ng.catalogempty") : null)"
@@ -181,7 +181,7 @@
                                     <button type="button"
                                             class="op-btn op-btn-danger op-btn-sm"
                                             data-testid="btn-ng-confirm"
-                                            disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
+                                            disabled="@(Busy || SpecialAcceptOnly || !IsValidNgReason(draft.NgReasonCode))"
                                             @onclick="() => OnSubmitNg(row, draft)">
                                         @T("womat.btn.saveng")
                                     </button>
@@ -222,6 +222,18 @@
 
     /// <summary>PD leader / Supervisor concedes a material despite a defect.</summary>
     [Parameter] public EventCallback<SpecialAcceptIntent> OnSpecialAccept { get; set; }
+
+    /// <summary>
+    /// Chế độ KHẮC PHỤC MUỘN: WO đã qua Pre-press (MesPhase = IPQC_APPROVED)
+    /// nên server chỉ còn nhận <c>special-accept</c>; <c>PUT /materials</c>
+    /// thường sẽ trả 422 <c>wo.invalid_phase</c>.
+    ///
+    /// <para>Vì vậy OK/NG bị tắt thay vì để đó cho người ta bấm rồi ăn lỗi —
+    /// nút bấm được mà chắc chắn hỏng là nói dối người đứng máy. Special
+    /// Accept giữ nguyên: nó là đường xả duy nhất còn hợp lệ, và nó có mã lỗi
+    /// bắt buộc + audit nên nhân nhượng vẫn nằm trong hồ sơ.</para>
+    /// </summary>
+    [Parameter] public bool SpecialAcceptOnly { get; set; }
 
     private readonly Dictionary<int, MaterialDraft> _drafts = new();
 

@@ -76,6 +76,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoCutterCheck> WoCutterChecks => Set<WoCutterCheck>();
     // P10.7c-1 — RUNNING + PAUSED child tables (per contract §5.4).
     public DbSet<WoRunSession> WoRunSessions => Set<WoRunSession>();
+    public DbSet<WoPhaseSpan> WoPhaseSpans => Set<WoPhaseSpan>();
     public DbSet<WoPauseEvent> WoPauseEvents => Set<WoPauseEvent>();
     public DbSet<WoQtyEntry> WoQtyEntries => Set<WoQtyEntry>();
     // P10.7d-1 — IPQC review surface (per contract §5.5).
@@ -98,6 +99,173 @@ public class MesDbContext : DbContext, IMesDbContext
     // A1 — mạch lô nguyên vật liệu (xem MaterialLot.cs / WoMaterialConsumption.cs).
     public DbSet<MaterialLot> MaterialLots => Set<MaterialLot>();
     public DbSet<WoMaterialConsumption> WoMaterialConsumptions => Set<WoMaterialConsumption>();
+
+    // ── Mốc thời gian công đoạn (WoPhaseSpan) ───────────────────────────
+    //
+    // VÌ SAO Ở ĐÂY, KHÔNG PHẢI TRONG TỪNG CONTROLLER. `wo.MesPhase = ...` nằm
+    // ở 14 chỗ rải 6 file (RoutingController, AdminWorkOrdersController,
+    // WoQcReviewController ×2, IpqcReviewController ×2, RunningSurfaceController
+    // ×2, RunningSurfaceServices ×4, WorkOrderService). Đóng dấu tay ở 14 chỗ
+    // thì chỗ thứ 15 thêm sau sẽ lặng lẽ không sinh dữ liệu — và cái sai đó chỉ
+    // lộ ra nhiều tháng sau, lúc ai đó hỏi vì sao OEE của một công đoạn trống.
+    // Móc vào ChangeTracker thì KHÔNG QUÊN ĐƯỢC: hễ MesPhase đổi là có mốc.
+    //
+    // Chạy TRƯỚC base.SaveChanges nên dòng mốc nằm cùng một transaction với
+    // chính lần đổi phase — không có cửa sổ nào để hai thứ lệch nhau.
+
+    public override int SaveChanges()
+    {
+        var changes = PendingPhaseChanges();
+        if (changes.Count > 0)
+        {
+            var ids = changes.Select(c => c.WoId).Where(i => i > 0).ToList();
+            var open = ids.Count == 0
+                ? new List<WoPhaseSpan>()
+                : WoPhaseSpans.Where(x => ids.Contains(x.WoId) && x.EndedAt == null).ToList();
+            // Nạp mọi span cũ của các WO này vào ChangeTracker để đếm VisitNo.
+            if (ids.Count > 0) _ = WoPhaseSpans.Where(x => ids.Contains(x.WoId)).ToList();
+            ApplyPhaseSpans(changes, open, DateTime.UtcNow);
+        }
+        try { return base.SaveChanges(); }
+        catch (DbUpdateException ex) when (IsOpenSpanRace(ex)) { throw AsConcurrency(ex); }
+    }
+
+    public override async Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var changes = PendingPhaseChanges();
+        if (changes.Count > 0)
+        {
+            var ids = changes.Select(c => c.WoId).Where(i => i > 0).ToList();
+            var open = ids.Count == 0
+                ? new List<WoPhaseSpan>()
+                : await WoPhaseSpans.Where(x => ids.Contains(x.WoId) && x.EndedAt == null)
+                    .ToListAsync(cancellationToken);
+            // Nạp mọi span cũ của các WO này vào ChangeTracker để đếm VisitNo.
+            if (ids.Count > 0)
+                _ = await WoPhaseSpans.Where(x => ids.Contains(x.WoId)).ToListAsync(cancellationToken);
+            ApplyPhaseSpans(changes, open, DateTime.UtcNow);
+        }
+        try { return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken); }
+        catch (DbUpdateException ex) when (IsOpenSpanRace(ex)) { throw AsConcurrency(ex); }
+    }
+
+    /// <summary>
+    /// Va vào <c>UX_WoPhaseSpans_Open*</c> nghĩa là một transaction KHÁC vừa
+    /// đổi phase của đúng WO này trước ta. Đó là xung đột đồng thời, không
+    /// phải lỗi dữ liệu — nên nó phải mang đúng kiểu ngoại lệ để tầng trên
+    /// trả 409 <c>wo.state_conflict</c> như mọi lần thua khoá lạc quan khác.
+    ///
+    /// <para>Không có lớp dịch này thì bảng mốc thời gian sẽ BIẾN một cuộc đua
+    /// vốn xử lý sạch sẽ thành 500 — đo được bằng soak N=10 của
+    /// <c>AdminWorkOrdersForcePhaseTests</c>: 9 kẻ thua đáng lẽ nhận 409.</para>
+    /// </summary>
+    private static bool IsOpenSpanRace(DbUpdateException ex) =>
+        ex is not DbUpdateConcurrencyException
+        && (ex.InnerException?.Message.Contains("WoPhaseSpans", StringComparison.Ordinal) ?? false)
+        && (ex.InnerException?.Message.Contains("UNIQUE constraint failed", StringComparison.Ordinal) ?? false);
+
+    private static DbUpdateConcurrencyException AsConcurrency(DbUpdateException ex) =>
+        new("Another transaction changed this work order's phase first "
+            + "(open phase-span uniqueness). Treated as an optimistic-concurrency conflict.", ex);
+
+    /// <summary>Một lần đổi phase đang chờ ghi. <c>WoId</c> = 0 khi WO còn
+    /// đang được INSERT (chưa có khoá) — khi đó ta gắn qua navigation để EF
+    /// tự điền khoá ngoại sau.</summary>
+    private readonly record struct PhaseChange(
+        long WoId, WorkOrder Wo, string? From, string To, string Actor);
+
+    private List<PhaseChange> PendingPhaseChanges()
+    {
+        var list = new List<PhaseChange>();
+        foreach (var e in ChangeTracker.Entries<WorkOrder>())
+        {
+            string? from;
+            string to;
+            if (e.State == EntityState.Added)
+            {
+                from = null;
+                to = e.Entity.MesPhase;
+            }
+            else if (e.State == EntityState.Modified)
+            {
+                var prop = e.Property(x => x.MesPhase);
+                if (!prop.IsModified) continue;
+                from = prop.OriginalValue;
+                to = prop.CurrentValue ?? "";
+                if (string.Equals(from, to, StringComparison.Ordinal)) continue;
+            }
+            else continue;
+
+            // Không theo dõi phase nào thì bỏ qua hẳn — không sinh dòng rác.
+            if (!WoPhaseSpanPolicy.IsTracked(from) && !WoPhaseSpanPolicy.IsTracked(to)) continue;
+
+            // Chỉ tin UpdatedBy khi CHÍNH lần ghi này có đóng dấu. Nếu không,
+            // giá trị còn lại là actor của lần sửa TRƯỚC — gán nhầm việc cho
+            // người khác, tệ hơn là để trống.
+            //
+            // Nhận diện qua UpdatedAt chứ KHÔNG chỉ qua UpdatedBy: mọi đường
+            // ghi đóng dấu đều set cả hai, mà UpdatedAt là mốc thời gian nên
+            // luôn đổi. Nếu chỉ soi UpdatedBy thì cùng một người thao tác hai
+            // lần liên tiếp sẽ có giá trị không đổi ⇒ EF báo "không sửa" ⇒ rơi
+            // nhầm về "system". Đã đo được đúng lỗi đó trên live: admin bấm
+            // force-phase mà span ghi "system".
+            var stamped = e.State == EntityState.Added
+                || e.Property(x => x.UpdatedBy).IsModified
+                || e.Property(x => x.UpdatedAt).IsModified;
+            var actor = stamped ? e.Entity.UpdatedBy : null;
+            if (string.IsNullOrWhiteSpace(actor)) actor = "system";
+            list.Add(new PhaseChange(e.Entity.Id, e.Entity, from, to, actor));
+        }
+        return list;
+    }
+
+    /// <summary>Thuần — đóng khoảng cũ, mở khoảng mới. Tách khỏi phần I/O để
+    /// test được mà không cần DB.</summary>
+    private void ApplyPhaseSpans(
+        IReadOnlyList<PhaseChange> changes, List<WoPhaseSpan> openFromDb, DateTime nowUtc)
+    {
+        foreach (var ch in changes)
+        {
+            // Đóng khoảng CÒN MỞ của công đoạn vừa rời. Gộp cả dòng đã nằm
+            // trong ChangeTracker (chưa lưu) lẫn dòng đọc từ DB — nếu không,
+            // hai lần đổi phase trong cùng một SaveChanges sẽ để lại khoảng mồ côi.
+            var candidates = openFromDb
+                .Concat(WoPhaseSpans.Local.Where(x => x.EndedAt is null))
+                .Where(x => x.EndedAt is null
+                            && (x.WoId == ch.WoId || ReferenceEquals(x.WorkOrder, ch.Wo)));
+
+            foreach (var span in candidates.ToList())
+            {
+                span.EndedAt = nowUtc;
+                span.EndedBy = ch.Actor;
+                span.UpdatedAt = nowUtc;
+                span.UpdatedBy = ch.Actor;
+            }
+
+            if (!WoPhaseSpanPolicy.IsTracked(ch.To)) continue;
+
+            // Lần vào thứ mấy. Đếm DUY NHẤT qua ChangeTracker.Local: các dòng
+            // vừa nạp từ DB ở trên là tracked nên đã nằm sẵn trong Local, và
+            // các dòng vừa Add trong chính SaveChanges này cũng vậy. Cộng
+            // thêm danh sách DB nữa là đếm đôi (đã đo: ra 3 thay vì 2).
+            var visitNo = 1 + WoPhaseSpans.Local.Count(x => x.Phase == ch.To
+                && (x.WoId == ch.WoId || ReferenceEquals(x.WorkOrder, ch.Wo)));
+
+            var opened = new WoPhaseSpan
+            {
+                Phase = ch.To,
+                VisitNo = visitNo,
+                StartedAt = nowUtc,
+                StartedBy = ch.Actor,
+                CreatedAt = nowUtc,
+                CreatedBy = ch.Actor,
+            };
+            // WO đang INSERT thì Id còn 0 — gắn navigation để EF điền khoá ngoại.
+            if (ch.WoId > 0) opened.WoId = ch.WoId; else opened.WorkOrder = ch.Wo;
+            WoPhaseSpans.Add(opened);
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -199,6 +367,26 @@ public class MesDbContext : DbContext, IMesDbContext
 
         // P10.7c-1 — RUNNING + PAUSED child tables (contract §5.4).
         b.Entity<WoRunSession>().HasIndex(x => x.WoId);
+        b.Entity<WoPhaseSpan>().HasIndex(x => new { x.WoId, x.Phase });
+        b.Entity<WoPhaseSpan>().HasIndex(x => new { x.WoId, x.StartedAt });
+        // Partial unique — SQLite hỗ trợ WHERE. Bất biến được ép ở tầng DB là
+        // "MỘT WO ở đúng MỘT công đoạn tại một thời điểm", chứ KHÔNG phải
+        // "một khoảng mở cho mỗi cặp (WO, công đoạn)": bản yếu hơn vẫn cho
+        // tồn tại khoảng PREPRESS mở song song với IPQC mở, tức đúng cái lỗi
+        // quên-đóng-sổ mà bảng này sinh ra để chặn. Sai sót đó phải va vào
+        // ràng buộc DB, không phải trông chờ code nhớ.
+        b.Entity<WoPhaseSpan>().HasIndex(x => x.WoId)
+            .IsUnique().HasFilter("\"EndedAt\" IS NULL AND \"WoLegId\" IS NULL")
+            .HasDatabaseName("UX_WoPhaseSpans_OpenPerWo");
+        // Nhánh per-leg: SQLite coi NULL là phân biệt trong unique index, nên
+        // phải tách làm hai — gộp một index sẽ KHÔNG ép được nhánh mức-WO.
+        // Khai cột shadow NGAY ĐÂY vì index dưới dùng tới nó, mà vòng lặp gắn
+        // WoLegId cho 8 bảng surface chạy SAU khối này — thứ tự trong
+        // OnModelCreating có ý nghĩa. Khai hai lần là vô hại (cùng builder).
+        b.Entity<WoPhaseSpan>().Property<long?>("WoLegId");
+        b.Entity<WoPhaseSpan>().HasIndex("WoId", "WoLegId")
+            .IsUnique().HasFilter("\"EndedAt\" IS NULL AND \"WoLegId\" IS NOT NULL")
+            .HasDatabaseName("UX_WoPhaseSpans_OpenPerLeg");
         b.Entity<WoRunSession>().HasIndex(x => new { x.WoId, x.EndedAt });
         b.Entity<WoPauseEvent>().HasIndex(x => x.WoId);
         b.Entity<WoPauseEvent>().HasIndex(x => x.RunSessionId);
@@ -314,6 +502,9 @@ public class MesDbContext : DbContext, IMesDbContext
                      typeof(WoMaterial), typeof(WoPlateCheck), typeof(WoCutterCheck),
                      typeof(WoRunSession), typeof(WoPauseEvent), typeof(WoQtyEntry),
                      typeof(WoIpqcCheck), typeof(WoIpqcCheckItem),
+                     // Ship cột shadow NGAY khi bảng còn rỗng: mai mở per-leg
+                     // chỉ việc ghi non-null, không phải dịch một dòng nào.
+                     typeof(WoPhaseSpan),
                  })
         {
             b.Entity(surface).Property<long?>("WoLegId");
@@ -795,6 +986,12 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoMaterial>().HasOne<WorkOrder>().WithMany()
             .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<WoRunSession>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        // Nối THẲNG navigation vào WoId. Nếu để HasOne<WorkOrder>() không tên,
+        // EF coi navigation WorkOrder là quan hệ THỨ HAI và đẻ thêm cột shadow
+        // WorkOrderId + FK thứ hai về cùng một cha (đã thấy trong lần sinh
+        // migration đầu). Một bảng con, một khoá ngoại.
+        b.Entity<WoPhaseSpan>().HasOne(x => x.WorkOrder).WithMany()
             .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<WoQtyEntry>().HasOne<WorkOrder>().WithMany()
             .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);

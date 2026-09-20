@@ -102,6 +102,26 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             .OrderByDescending(p => p.Id)
             .FirstOrDefaultAsync(ct);
 
+        // Run/pause seconds already BANKED in CLOSED spans. The open session
+        // and open pause are left out on purpose — the dashboard ticks those
+        // client-side once a second, so the counter moves without polling.
+        // WoRuntimeMath is the SAME formula WoSummaryReportBuilder uses for
+        // the OEE report; going through it is what stops the operator's
+        // screen and the report drifting apart.
+        var nowUtc = DateTime.UtcNow;
+        var closedSessions = await _db.WoRunSessions.AsNoTracking()
+            .Where(r => r.WoId == id && r.EndedAt != null)
+            .Select(r => new { r.StartedAt, r.EndedAt })
+            .ToListAsync(ct);
+        var closedPauses = await _db.WoPauseEvents.AsNoTracking()
+            .Where(pe => pe.WoId == id && pe.EndedAt != null)
+            .Select(pe => new { pe.StartedAt, pe.EndedAt })
+            .ToListAsync(ct);
+        var runSecondsClosed = WoRuntimeMath.ElapsedSeconds(
+            closedSessions.Select(r => new WoRuntimeMath.Span(r.StartedAt, r.EndedAt)), nowUtc);
+        var pauseSecondsClosed = WoRuntimeMath.ElapsedSeconds(
+            closedPauses.Select(pe => new WoRuntimeMath.Span(pe.StartedAt, pe.EndedAt)), nowUtc);
+
         var recentEntries = await _db.WoQtyEntries.AsNoTracking()
             .Where(e => e.WoId == id)
             .OrderByDescending(e => e.Id)
@@ -162,6 +182,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             ActivePauseStartAt = activePause?.StartedAt,
             ActivePauseReasonCode = activePause?.ReasonCode,
             ActivePauseNote = activePause?.Note,
+            RunSecondsClosed = runSecondsClosed,
+            PauseSecondsClosed = pauseSecondsClosed,
             RecentEntries = recentEntries,
         };
 
@@ -301,12 +323,36 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
         var badLots = await _lots.LinesWithUnusableLotAsync(id);
         if (badLots.Count > 0)
         {
+            // HAI mã lỗi, không một. Dòng chưa ai kiểm và lô bị IQC thu hồi là
+            // hai việc phải làm khác nhau; gộp lại thì câu tiếng Việt chỉ sai
+            // việc cho đúng người đang đứng trước máy. Detail đi kèm để màn
+            // hình nói được DÒNG NÀO, MÃ NÀO — client dịch theo Code và bỏ
+            // MessageEn, nên dữ kiện phải nằm ở Details.
             var first = badLots[0];
-            return Invalid("run.material_lot_unusable",
-                $"Material '{first.MaterialCode}' is on lot '{first.LotNo ?? "—"}' "
-                + $"which is '{first.LotStatus ?? "not registered"}', not Released"
-                + (badLots.Count > 1 ? $" (+{badLots.Count - 1} more)" : "")
-                + ". Replace the lot or have a PD leader special-accept it before running.");
+            var unchecked_ = first.Block == MaterialLineBlock.NotChecked;
+            var details = new Dictionary<string, string>
+            {
+                ["bom_line_idx"] = first.BomLineIdx.ToString(),
+                ["material_code"] = first.MaterialCode ?? "",
+                ["lot_no"] = first.LotNo ?? "",
+                ["lot_status"] = first.LotStatus ?? "",
+                ["more_count"] = (badLots.Count - 1).ToString(),
+            };
+
+            return unchecked_
+                ? Invalid("run.material_line_unchecked",
+                    $"BOM line {first.BomLineIdx} ('{first.MaterialCode}') is not confirmed "
+                    + $"at Pre-press yet"
+                    + (badLots.Count > 1 ? $" (+{badLots.Count - 1} more)" : "")
+                    + ". Confirm the line against a released lot before running.",
+                    details)
+                : Invalid("run.material_lot_unusable",
+                    $"BOM line {first.BomLineIdx} ('{first.MaterialCode}') is on lot "
+                    + $"'{first.LotNo ?? "—"}' which is '{first.LotStatus ?? "not registered"}', "
+                    + $"not Released"
+                    + (badLots.Count > 1 ? $" (+{badLots.Count - 1} more)" : "")
+                    + ". Replace the lot or have a PD leader special-accept it before running.",
+                    details);
         }
 
         var svc = new WoRunSessionService(_db);

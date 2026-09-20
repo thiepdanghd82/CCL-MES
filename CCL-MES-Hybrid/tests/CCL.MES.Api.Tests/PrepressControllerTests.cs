@@ -772,6 +772,82 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("wo.invalid_phase", err.Code);
     }
 
+    // ── D2 (2026-09-18) — ngoại lệ phase cho Special Accept ────────
+    //
+    // Bối cảnh: /run/start từ chối WO vì một dòng vật tư và bảo người đứng máy
+    // "nhờ kỹ sư chấp nhận đặc biệt" — nhưng chính endpoint special-accept lại
+    // bị phase guard trả 422, nên WO kẹt cứng. Ba test dưới khoá cả hai mặt:
+    // đường xả PHẢI mở, và nó phải mở HẸP.
+
+    /// <summary>Đường xả phải dùng được đúng lúc cần — ở IPQC_APPROVED.</summary>
+    [Fact]
+    public async Task Special_accept_duoc_phep_o_IPQC_APPROVED()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync(
+            "WO-D2-SA", "PROD-D2SA", mesPhase: "IPQC_APPROVED");
+        var client = await ClientAsRoleAsync("eng-d2-sa", UserRole.Engineer);
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"lô bị IQC thu hồi sau khi gắn\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        // Nhân nhượng phải NẰM LẠI trong hồ sơ, không chỉ mở cổng rồi thôi.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.WoMaterials
+            .SingleAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal(PrepressCheckStatus.Ok, row.Status);
+        Assert.Equal("SC-COLOR", row.NgReasonCode);
+    }
+
+    /// <summary>
+    /// Mở HẸP: PUT /materials thường VẪN chỉ PREPRESS. Không ai được lặng lẽ
+    /// bật một dòng thành Ok sau khi IPQC đã ký mà không để lại nhân nhượng.
+    /// </summary>
+    [Fact]
+    public async Task Put_material_thuong_o_IPQC_APPROVED_van_bi_tu_choi()
+    {
+        var (woId, _) = await SeedWoWithBomAsync(
+            "WO-D2-PUT", "PROD-D2PUT", mesPhase: "IPQC_APPROVED");
+        var client = await OperatorClientAsync("op-d2-put");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            OkBody("PROD-D2PUT", 0), ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
+        Assert.Equal("wo.invalid_phase", err.Code);
+    }
+
+    /// <summary>
+    /// Ngoại lệ CHỈ cho IPQC_APPROVED. RUNNING vẫn chặn — máy đã chạy rồi thì
+    /// nhân nhượng vật tư không còn là quyết định trước khi chạy nữa.
+    /// </summary>
+    [Fact]
+    public async Task Special_accept_o_RUNNING_van_bi_tu_choi()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync(
+            "WO-D2-RUN", "PROD-D2RUN", mesPhase: "RUNNING");
+        var client = await ClientAsRoleAsync("eng-d2-run", UserRole.Engineer);
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"quá muộn\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
+        Assert.Equal("wo.invalid_phase", err.Code);
+    }
+
     [Fact]
     public async Task Put_material_unknown_bom_line_idx_returns_404()
     {

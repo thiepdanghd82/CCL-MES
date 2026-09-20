@@ -34,6 +34,7 @@
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RunningSurface
+@using System.Timers
 @inject ICclApiClient Api
 
 <div class="rs-dashboard" data-testid="running-dashboard">
@@ -106,6 +107,32 @@
                     <span class="rs-pause-reason">@(_view.ActivePauseReasonCode ?? "?")</span>
                 </div>
             }
+            @if (ShowRunClock)
+            {
+                <div class="rs-runclock @(IsPausedNow ? "is-paused" : "")"
+                     data-testid="running-clock" title="@T("running.timer.hint")">
+                    <div class="rs-runclock-main">
+                        <span class="rs-runclock-label">
+                            @T("running.timer.run.label")
+                            @if (IsPausedNow)
+                            {
+                                <span class="rs-runclock-flag">@T("running.timer.paused.now")</span>
+                            }
+                        </span>
+                        <span class="rs-runclock-value scan-mono" data-testid="running-clock-run">@Hms(RunSecondsLive)</span>
+                    </div>
+                    <div class="rs-runclock-side">
+                        <div class="rs-runclock-stat">
+                            <span class="rs-runclock-stat-label">@T("running.timer.pause.label")</span>
+                            <span class="rs-runclock-stat-value scan-mono" data-testid="running-clock-pause">@Hms(PauseSecondsLive)</span>
+                        </div>
+                        <div class="rs-runclock-stat">
+                            <span class="rs-runclock-stat-label">@T("running.timer.availability.label")</span>
+                            <span class="rs-runclock-stat-value scan-mono" data-testid="running-clock-availability">@AvailabilityText</span>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
 
         @if (_setError is not null)
@@ -115,6 +142,22 @@
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
                         data-testid="running-set-error-dismiss">@T("running.dismiss")</button>
+            </div>
+        }
+
+        @* D2 — ĐƯỜNG RA phải ở ngay cạnh chỗ bị chặn.
+           Câu báo lỗi bảo "nhờ kỹ sư chấp nhận đặc biệt", nhưng ở phase này
+           màn Pre-press không được render và endpoint special-accept trước đây
+           cũng bị guard chặn — người đứng máy đọc xong không có chỗ nào để đi.
+           Panel này mở đúng khi cổng vừa từ chối, và tự biến mất khi bỏ qua
+           lỗi hoặc khi khắc phục xong (ReloadAsync xoá _setErrorCode). *@
+        @if (_setErrorCode is "run.material_line_unchecked" or "run.material_lot_unusable")
+        {
+            <div class="rs-card rs-card-stretch" data-testid="running-material-remediation">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">@T("running.material.remediation.title")</div>
+                </div>
+                <PrepressDashboard WorkOrderId="@WorkOrderId" SpecialAcceptOnly="true" />
             </div>
         }
 
@@ -326,6 +369,7 @@
             _view = null;
             _initialError = null;
             _setError = null;
+            _setErrorCode = null;
             _invalidPhase = false;
             await ReloadAsync();
         }
@@ -337,6 +381,7 @@
         {
             _view = await Api.GetRunningSurfaceViewAsync(WorkOrderId);
             _invalidPhase = !IsValidRunningPhase(_view.MesPhase);
+            SyncClockTicker();
         }
         catch (ApiException apiEx)
         {
@@ -399,6 +444,9 @@
         if (_view is null) return;
         _busy = true;
         _setError = null;
+        // Xoá cùng lúc với _setError: bấm lại mà panel khắc phục còn treo thì
+        // người đứng máy không biết lần này đã qua hay chưa.
+        _setErrorCode = null;
         try
         {
             var ifMatch = _view.ETag;
@@ -431,6 +479,7 @@
         catch (ApiException apiEx)
         {
             _setError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            _setErrorCode = apiEx.ApiError.Code;
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
@@ -526,5 +575,103 @@
     private void OnNgNoteInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
         => _ngNote = e.Value?.ToString() ?? "";
 
-    private void DismissSetError() => _setError = null;
+    private void DismissSetError()
+    {
+        _setError = null;
+        _setErrorCode = null;
+    }
+
+    /// <summary>
+    /// Mã lỗi THÔ của lần ghi hỏng gần nhất — giữ riêng khỏi <c>_setError</c>
+    /// (đã dịch) vì UI cần rẽ nhánh theo MÃ, mà so khớp trên câu tiếng Việt thì
+    /// hỏng ngay lần đầu ai đó sửa chính tả.
+    /// </summary>
+    private string? _setErrorCode;
+
+    // ── Đồng hồ chạy máy (OEE) ──────────────────────────────────────────
+    //
+    // Nguồn số: server gửi giây ĐÃ CHỐT của các phiên/lần dừng đã đóng
+    // (RunSecondsClosed / PauseSecondsClosed, tính bằng WoRuntimeMath — đúng
+    // công thức báo cáo OEE dùng). Phần đang mở thì cộng tại client mỗi giây,
+    // nên đồng hồ nhảy mà không phải gọi API liên tục.
+    //
+    // Vì sao KHÔNG đếm thẳng từ ActiveSessionStartAt: Pause ĐÓNG phiên chạy và
+    // Resume mở phiên MỚI. Đếm theo phiên hiện tại thì mỗi lần tạm dừng đồng hồ
+    // lại về 0 và báo thiếu giờ máy — đúng thứ làm hỏng chỉ số OEE.
+
+    private Timer? _clockTicker;
+
+    /// <summary>Chỉ chạy đồng hồ ở hai phase mà thời gian máy còn ý nghĩa.
+    /// Phase khác (chờ IPQC, đã xong, đã huỷ) thì không hiện, để người đứng
+    /// máy không đọc nhầm một con số đang đứng yên là máy đang chạy.</summary>
+    private bool ShowRunClock =>
+        _view is not null
+        && (_view.MesPhase == "RUNNING" || _view.MesPhase == "PAUSED")
+        && (_view.RunSecondsClosed > 0 || _view.ActiveSessionStartAt is not null);
+
+    private bool IsPausedNow => _view?.ActivePauseStartAt is not null;
+
+    private long RunSecondsLive =>
+        (_view?.RunSecondsClosed ?? 0) + OpenSpanSeconds(_view?.ActiveSessionStartAt);
+
+    private long PauseSecondsLive =>
+        (_view?.PauseSecondsClosed ?? 0) + OpenSpanSeconds(_view?.ActivePauseStartAt);
+
+    /// <summary>Giây đã trôi của một khoảng CÒN MỞ. Không bao giờ âm — lệch
+    /// đồng hồ máy/DB không được phép làm đồng hồ chạy ngược.</summary>
+    private static long OpenSpanSeconds(DateTime? startedAtUtc)
+    {
+        if (startedAtUtc is null) return 0;
+        var secs = (DateTime.UtcNow - startedAtUtc.Value).TotalSeconds;
+        return secs > 0 ? (long)secs : 0;
+    }
+
+    /// <summary>HH:MM:SS, giờ KHÔNG cuộn về 0 sau 24h (ca dài / WO qua đêm
+    /// vẫn phải đọc đúng tổng giờ máy).</summary>
+    private static string Hms(long totalSeconds)
+    {
+        if (totalSeconds < 0) totalSeconds = 0;
+        var h = totalSeconds / 3600;
+        var m = totalSeconds % 3600 / 60;
+        var sec = totalSeconds % 60;
+        return $"{h:D2}:{m:D2}:{sec:D2}";
+    }
+
+    /// <summary>Availability = run / (run + pause) — đúng công thức Nakajima
+    /// mà <c>WoSummaryReportBuilder</c> dùng. Phiên và lần dừng KHÔNG chồng
+    /// nhau (pause đóng phiên) nên mẫu số không đếm trùng. Chưa có giây nào
+    /// thì hiện "—" chứ không hiện 0% (0% nghĩa là máy đứng, không phải chưa đo).</summary>
+    private string AvailabilityText
+    {
+        get
+        {
+            var run = RunSecondsLive;
+            var total = run + PauseSecondsLive;
+            if (total <= 0) return "—";
+            return $"{Math.Round(run * 100d / total)}%";
+        }
+    }
+
+    /// <summary>Bật/tắt nhịp 1 giây theo phase. Gọi sau MỖI lần tải lại view,
+    /// nên WO chuyển sang DONE/CANCELLED là nhịp tự tắt — không để timer chạy
+    /// mồ côi trên một màn hình không còn đồng hồ.</summary>
+    private void SyncClockTicker()
+    {
+        if (!ShowRunClock) { StopClockTicker(); return; }
+        if (_clockTicker is not null) return;
+        _clockTicker = new Timer(1000) { AutoReset = true, Enabled = true };
+        _clockTicker.Elapsed += async (_, __) => await InvokeAsync(StateHasChanged);
+    }
+
+    private void StopClockTicker()
+    {
+        _clockTicker?.Dispose();
+        _clockTicker = null;
+    }
+
+    public override void Dispose()
+    {
+        StopClockTicker();
+        base.Dispose();
+    }
 }

@@ -64,6 +64,7 @@ public interface IMesDbContext
     DbSet<WoCutterCheck> WoCutterChecks { get; }
     // P10.7c-1 — RUNNING + PAUSED child tables (per contract §5.4).
     DbSet<WoRunSession> WoRunSessions { get; }
+    DbSet<WoPhaseSpan> WoPhaseSpans { get; }
     DbSet<WoPauseEvent> WoPauseEvents { get; }
     DbSet<WoQtyEntry> WoQtyEntries { get; }
     // P10.7d-1 — IPQC review surface (per contract §5.5).

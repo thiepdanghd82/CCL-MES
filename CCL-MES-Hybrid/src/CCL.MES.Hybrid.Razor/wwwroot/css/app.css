@@ -5627,6 +5627,20 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     font-size: var(--fs-md);
 }
 
+/* D2 — dải giải thích của PANEL KHẮC PHỤC MUỘN (PrepressDashboard mở từ màn
+   "Sẵn sàng chạy"). Viền trái màu Special Accept vì đó là hành động duy nhất
+   còn lại ở đây, nên màu phải khớp nút, không phải màu lỗi chung. */
+.prepress-remediation-note {
+    margin: var(--sp-3) 0;
+    padding: var(--sp-3);
+    border: 1px solid var(--c-line);
+    border-left: 3px solid var(--indigo);
+    border-radius: var(--r-sm);
+    background: var(--c-surface-2);
+    color: var(--c-ink-3);
+    font-size: var(--fs-md);
+}
+
 /* Scan materials bar (PREPRESS) — USB wedge (Zebra DS2208) input box. */
 .prepress-scan-bar {
     display: flex;
@@ -5947,6 +5961,102 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 }
 .rs-pause-label { text-transform: uppercase; font-size: var(--fs-2xs); letter-spacing: 0.04em; }
 .rs-pause-reason { font-family: var(--font-mono); }
+
+/* ── Đồng hồ chạy máy (OEE) — RunningDashboard ──────────────────────────
+   Số lớn = giờ máy THỰC (tổng các phiên chạy, đã trừ lúc tạm dừng); hai ô
+   phụ = thời gian dừng + Availability, để người đứng máy thấy ngay vì sao
+   chỉ số tụt chứ không phải chỉ thấy nó tụt.
+
+   tabular-nums là bắt buộc, không phải trang trí: đồng hồ nhảy mỗi giây,
+   chữ số không đều bề rộng sẽ làm cả cụm giật ngang liên tục.
+   Cỡ chữ đi qua --op-fs-id / --op-fs-num nên tự to lên ở density
+   shopfloor (22→28px và 18→22px) mà không cần luật riêng. */
+.rs-runclock {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--c-card);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    transition: background var(--mo-base) var(--ease-std),
+                border-color var(--mo-base) var(--ease-std);
+}
+
+.rs-runclock-main {
+    display: inline-flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.rs-runclock-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--c-muted);
+}
+
+.rs-runclock-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--op-fs-id);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    color: var(--c-ink);
+}
+
+/* Cột phụ: ngăn cách bằng một đường mảnh, không bằng khoảng trắng — ở xưởng
+   nhìn từ xa thì khoảng trắng không đọc ra được là hai nhóm số khác nhau. */
+.rs-runclock-side {
+    display: inline-flex;
+    gap: var(--sp-4);
+    padding-left: var(--sp-4);
+    border-left: 1px solid var(--c-line);
+}
+
+.rs-runclock-stat {
+    display: inline-flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.rs-runclock-stat-label {
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--c-muted);
+}
+
+.rs-runclock-stat-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--op-fs-num);
+    font-weight: var(--fw-semibold);
+    line-height: 1.1;
+    color: var(--c-ink);
+}
+
+/* Đang tạm dừng: đồng hồ giờ máy ĐỨNG YÊN. Phải nhìn ra ngay, nếu không
+   người đứng máy tưởng máy vẫn đang chạy mà số không lên. */
+.rs-runclock.is-paused {
+    background: var(--warn-bg);
+    border-color: var(--warn-soft);
+}
+.rs-runclock.is-paused .rs-runclock-value,
+.rs-runclock.is-paused .rs-runclock-label,
+.rs-runclock.is-paused .rs-runclock-stat-label { color: var(--warn-ink); }
+.rs-runclock.is-paused .rs-runclock-side { border-left-color: var(--warn-soft); }
+
+.rs-runclock-flag {
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--warn-soft);
+    color: var(--warn-ink);
+    font-weight: var(--fw-bold);
+}
 
 .rs-card {
     background: var(--c-card);
@@ -6378,6 +6488,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 @container (max-width: 900px) {
     .rs-head { flex-direction: column; align-items: stretch; }
+    /* .rs-head sập cột + stretch ⇒ đồng hồ chiếm trọn bề ngang; trải hai
+       cụm số ra hai đầu thay vì để chúng dính nhau ở mép trái. Tablet dọc
+       dưới xưởng (~800px) rơi đúng vào nhánh này. */
+    .rs-runclock { display: flex; justify-content: space-between; }
     .rs-counter { grid-template-columns: 1fr 1fr; }
     .rs-counter-target { grid-column: 1 / -1; min-height: 80px; }
     .rs-tap-grid { grid-template-columns: repeat(2, 1fr); }
@@ -7424,6 +7538,77 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 }
 .shipped-pareto-value { font-size: var(--fs-sm); color: var(--c-ink-4); text-align: right; }
 
+/* ── Thời gian theo công đoạn (§5.7) ───────────────────────────── */
+/* Bốn cột cố định, và cột "lượt" GIỮ CHỖ cả khi không có rework —
+   nếu để nó co lại thì các thanh bar lệch nhau giữa dòng có và không
+   có rework, mắt phải căn lại từng dòng thay vì quét một cột. */
+.shipped-phase-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+.shipped-phase-row {
+    display: grid;
+    grid-template-columns: minmax(0, 150px) 1fr minmax(0, 96px) minmax(0, 84px);
+    align-items: center;
+    gap: var(--sp-3);
+}
+.shipped-phase-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    min-width: 0;                       /* co được, không đẩy vỡ lưới */
+    font-weight: var(--fw-semibold);
+    color: var(--c-ink-3);
+    font-size: var(--d-font);
+}
+/* Chỉ TÊN bị ellipsis, không phải cả cụm — chip trạng thái đứng cạnh phải
+   còn nguyên chữ. */
+.shipped-phase-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Công đoạn hàng-đợi/kiểm-tra ⇒ tông indigo, KHÔNG dùng --ng như Pareto:
+   nằm ở IPQC lâu không phải là lỗi, chỉ là thời gian. Dùng đỏ ở đây sẽ
+   đọc thành "hỏng" và làm loãng màu đỏ vốn dành cho NG thật. */
+.shipped-phase-bar {
+    height: 100%;
+    background: var(--indigo);
+    transition: width var(--mo-base) var(--ease-std);
+}
+.shipped-phase-value {
+    font-size: var(--fs-sm);
+    color: var(--c-ink-4);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.shipped-phase-open {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-soft);
+    color: var(--warn-ink);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    white-space: nowrap;
+}
+/* Chip "N lượt" — dấu hiệu WO đã bị TRẢ VỀ. Đây mới là dòng đáng nhìn
+   trong bảng, nên nó là thứ duy nhất có màu cảnh báo. */
+.shipped-phase-rework {
+    justify-self: end;
+    padding: var(--sp-1) var(--sp-2);
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--r-pill);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-soft);
+    color: var(--warn-ink);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    white-space: nowrap;
+}
+.shipped-phase-rework-none { display: block; }
+.shipped-phase-row.has-rework .shipped-phase-label { color: var(--warn-ink); }
+
 /* ── QC chain summary ──────────────────────────────────────────── */
 
 .shipped-qc-grid {
@@ -7557,6 +7742,15 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     .oqc-sig-grid            { grid-template-columns: 1fr; }
     .shipped-pareto-row      { grid-template-columns: 88px 1fr; row-gap: 4px; }
     .shipped-pareto-value    { grid-column: 1 / -1; text-align: left; }
+    /* Tablet dọc dưới xưởng. Nhãn chiếm TRỌN dòng: nhồi tên + chip trạng
+       thái vào một cột hẹp thì tên bị ellipsis còn "C…" — đo được ở 768px,
+       và tên công đoạn là thứ người đọc cần nhất, không phải cái chip. */
+    .shipped-phase-row       { grid-template-columns: 1fr auto; row-gap: var(--sp-1); }
+    .shipped-phase-label     { grid-column: 1 / -1; }
+    .shipped-pareto-bar-track { grid-column: 1; }
+    .shipped-phase-value     { grid-column: 2; text-align: right; }
+    .shipped-phase-rework    { grid-column: 1 / -1; justify-self: start; }
+    .shipped-phase-rework-none { display: none; }
     .shipped-stat-grid       { grid-template-columns: 1fr; }
     .shipped-oee-grid        { grid-template-columns: 1fr; }
 }

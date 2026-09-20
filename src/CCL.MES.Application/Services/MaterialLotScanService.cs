@@ -863,14 +863,23 @@ public sealed class MaterialLotScanService
     /// hồi vẫn lên máy, và cái giá là cả một lượt chạy.</para>
     ///
     /// <para>Dùng chung đúng vị từ với rollup Pre-press
-    /// (<see cref="MaterialsReadinessRollup.IsLineReady"/>) nên Special Accept
+    /// (<see cref="MaterialsReadinessRollup.Classify"/>) nên Special Accept
     /// vẫn được tính là đạt — nó là đường xả đã có chữ ký, không phải lỗ hổng.</para>
+    ///
+    /// <para><b>Trả kèm LÝ DO</b> (<see cref="MaterialLineBlock"/>), vì "chưa
+    /// ai kiểm dòng này" và "lô không còn Released" là hai việc phải làm khác
+    /// nhau. Caller nào gộp lại thành một câu là caller đang chỉ sai việc cho
+    /// người đứng máy — xem ghi chú ở <see cref="MaterialsReadinessRollup.Classify"/>.</para>
+    ///
+    /// <para><b>Thứ tự trả về theo <c>BomLineIdx</c></b>: caller chỉ hiện dòng
+    /// đầu tiên kèm "+N dòng nữa", nên thứ tự phải ổn định, không phụ thuộc
+    /// thứ tự EF trả về.</para>
     /// </summary>
-    public async Task<IReadOnlyList<(string MaterialCode, string? LotNo, string? LotStatus)>>
+    public async Task<IReadOnlyList<BlockedMaterialLine>>
         LinesWithUnusableLotAsync(long woId, CancellationToken ct = default)
     {
         var rows = await _db.WoMaterials.Where(m => m.WorkOrderId == woId).ToListAsync(ct);
-        if (rows.Count == 0) return Array.Empty<(string, string?, string?)>();
+        if (rows.Count == 0) return Array.Empty<BlockedMaterialLine>();
 
         // Một truy vấn cho tất cả lô đang gắn, không tra từng dòng (N+1).
         var fks = rows.Select(LotFkOf).Where(x => x is not null)
@@ -883,12 +892,14 @@ public sealed class MaterialLotScanService
 
         var inHouse = await InHouseCodesAsync(rows.Select(m => m.MaterialCode), ct);
 
-        var bad = new List<(string, string?, string?)>();
-        foreach (var m in rows)
+        var bad = new List<BlockedMaterialLine>();
+        foreach (var m in rows.OrderBy(m => m.BomLineIdx))
         {
             var st = LotFkOf(m) is { } id && statusById.TryGetValue(id, out var v) ? v : null;
-            if (!MaterialsReadinessRollup.IsLineReady(m, st, inHouse.Contains(m.MaterialCode ?? "")))
-                bad.Add((m.MaterialCode, m.LotNo, st));
+            var block = MaterialsReadinessRollup.Classify(
+                m, st, inHouse.Contains(m.MaterialCode ?? ""));
+            if (block != MaterialLineBlock.None)
+                bad.Add(new BlockedMaterialLine(m.BomLineIdx, m.MaterialCode, m.LotNo, st, block));
         }
         return bad;
     }
@@ -925,6 +936,20 @@ public sealed class MaterialLotScanService
         return s;
     }
 }
+
+/// <summary>
+/// Một dòng vật tư đang CHẶN máy chạy, kèm lý do chặn.
+///
+/// <para><see cref="BomLineIdx"/> đi cùng để câu báo lỗi chỉ được đúng DÒNG
+/// nào: một WO có thể có nhiều dòng cùng mã vật tư, nên mã không định danh
+/// được dòng.</para>
+/// </summary>
+public sealed record BlockedMaterialLine(
+    int BomLineIdx,
+    string MaterialCode,
+    string? LotNo,
+    string? LotStatus,
+    MaterialLineBlock Block);
 
 /// <summary>A1 — một dòng của bảng truy xuất mạch lô (một LẦN QUÉT, Đ4).</summary>
 public sealed class MaterialGenealogyRow

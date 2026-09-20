@@ -62,6 +62,12 @@ public static class WoSummaryReportBuilder
                 TotalSeconds = kv.Value.Seconds,
             }).ToList();
 
+        // Thời gian từng công đoạn — khối RIÊNG, KHÔNG chạm công thức OEE
+        // dưới đây. PREPRESS/IPQC/FQC/OQC là hàng đợi + kiểm tra, không phải
+        // machine run time; cộng chúng vào mẫu số availability là âm thầm
+        // định nghĩa lại một chỉ số đã công bố (§5.7 "Ranh giới với OEE").
+        var phaseBreakdown = BuildPhaseBreakdown(input.PhaseSpans, now);
+
         // OEE = Availability × Performance × Quality (Nakajima).
         double? availability = null;
         double? performance;
@@ -131,7 +137,50 @@ public static class WoSummaryReportBuilder
             },
             PausePareto = pareto,
             QcSummary = qcSummary,
+            PhaseBreakdown = phaseBreakdown,
+            PhaseTotalSeconds = phaseBreakdown.Sum(r => r.TotalSeconds),
         };
+    }
+
+    /// <summary>
+    /// Gom span theo công đoạn thành 3 chỉ số của §5.7. Dùng
+    /// <see cref="WoRuntimeMath.ElapsedSeconds"/> — CÙNG hàm runSeconds trên
+    /// kia dùng — nên khoảng còn mở tự chạy tới <paramref name="now"/> và
+    /// không đẻ công thức thứ hai.
+    ///
+    /// <para>Thứ tự: theo lần vào ĐẦU TIÊN, để bảng đọc ra đúng trình tự WO
+    /// đã đi qua chứ không phải xếp theo độ dài — người đọc muốn thấy dòng
+    /// chảy, và WO có rework thì trình tự mới là thứ kể ra câu chuyện.</para>
+    /// </summary>
+    private static List<WoSummaryPhaseRow> BuildPhaseBreakdown(
+        IReadOnlyList<WoSummaryPhaseSpanInput> spans, DateTime now)
+    {
+        if (spans.Count == 0) return new List<WoSummaryPhaseRow>();
+
+        return spans
+            .GroupBy(s => s.Phase, StringComparer.Ordinal)
+            .Select(g =>
+            {
+                var ordered = g.OrderBy(s => s.VisitNo).ThenBy(s => s.StartedAt).ToList();
+                var last = ordered[^1];
+                return new
+                {
+                    FirstEntry = ordered[0].StartedAt,
+                    Row = new WoSummaryPhaseRow
+                    {
+                        Phase = g.Key,
+                        TotalSeconds = WoRuntimeMath.ElapsedSeconds(
+                            ordered.Select(s => new WoRuntimeMath.Span(s.StartedAt, s.EndedAt)), now),
+                        LastSeconds = WoRuntimeMath.ElapsedSeconds(
+                            new WoRuntimeMath.Span(last.StartedAt, last.EndedAt), now),
+                        VisitCount = ordered.Count,
+                        IsOpen = last.EndedAt is null,
+                    },
+                };
+            })
+            .OrderBy(x => x.FirstEntry)
+            .Select(x => x.Row)
+            .ToList();
     }
 
     private static WoSummaryQcLeg MapQcLeg(WoSummaryQcLegInput? leg)
@@ -171,6 +220,10 @@ public sealed record WoSummaryReportInput
     public IReadOnlyList<WoSummarySessionSpan> Sessions { get; init; } = Array.Empty<WoSummarySessionSpan>();
     public IReadOnlyList<WoSummaryPauseSpan> PauseEvents { get; init; } = Array.Empty<WoSummaryPauseSpan>();
 
+    /// <summary>Mốc công đoạn từ <c>WoPhaseSpan</c> (§5.7). Rỗng với WO chạy
+    /// trước migration — khi đó <c>PhaseBreakdown</c> rỗng, KHÔNG bịa số.</summary>
+    public IReadOnlyList<WoSummaryPhaseSpanInput> PhaseSpans { get; init; } = Array.Empty<WoSummaryPhaseSpanInput>();
+
     // ── speed (already resolved async by the controller) ───────────
     public bool WorkCenterResolved { get; init; }
     public double? IdealSpeedPcsH { get; init; }
@@ -180,6 +233,10 @@ public sealed record WoSummaryReportInput
     public WoSummaryQcLegInput? Fqc { get; init; }
     public WoSummaryQcLegInput? Oqc { get; init; }
 }
+
+/// <summary>Một lần WO vào một công đoạn (mở khi EndedAt null) — §5.7.</summary>
+public readonly record struct WoSummaryPhaseSpanInput(
+    string Phase, int VisitNo, DateTime StartedAt, DateTime? EndedAt);
 
 /// <summary>One run session span (open when EndedAt is null).</summary>
 public readonly record struct WoSummarySessionSpan(DateTime StartedAt, DateTime? EndedAt);

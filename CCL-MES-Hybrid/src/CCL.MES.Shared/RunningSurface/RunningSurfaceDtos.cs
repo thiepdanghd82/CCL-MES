@@ -53,6 +53,29 @@ public sealed record RunningSurfaceView
     public string? ActivePauseReasonCode { get; init; }
     public string? ActivePauseNote { get; init; }
 
+    /// <summary>
+    /// Run seconds already BANKED in closed sessions — the live counter adds
+    /// the open session on top, client-side, once a second.
+    ///
+    /// <para>Why this field has to exist: <c>Pause</c> CLOSES the run session
+    /// and <c>Resume</c> opens a NEW one (<c>WoRunSessionService.Close</c> is
+    /// called from the pause flow). So <see cref="ActiveSessionStartAt"/> is
+    /// only the CURRENT stint — a counter driven by it alone silently resets
+    /// to zero after every pause and under-reports the machine's run time.
+    /// Computed with <c>WoRuntimeMath.ElapsedSeconds</c>, the same formula
+    /// the WO summary report and the Traceability list use, so the number on
+    /// the operator's screen and the number in the OEE report agree to the
+    /// second instead of becoming two sources of truth.</para>
+    /// </summary>
+    public long RunSecondsClosed { get; init; }
+
+    /// <summary>Pause seconds banked in closed pause events; the open pause
+    /// (if any) ticks client-side from <see cref="ActivePauseStartAt"/>.
+    /// Sessions and pauses are DISJOINT here — pause closes the session —
+    /// so <c>Availability = run / (run + pause)</c> holds without double
+    /// counting, which is exactly how <c>WoSummaryReportBuilder</c> reads it.</summary>
+    public long PauseSecondsClosed { get; init; }
+
     /// <summary>Newest-first list of qty entries on this WO. Drives the
     /// correction picker. Server clamps to most-recent N (default 20) so
     /// long-running WOs don't bloat the payload.</summary>

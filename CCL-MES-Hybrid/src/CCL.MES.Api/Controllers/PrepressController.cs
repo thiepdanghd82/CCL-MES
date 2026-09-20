@@ -256,7 +256,8 @@ public sealed class PrepressController : WoMutationControllerBase
                 "prepress.special_accept_forbidden",
                 "Only a PD leader (Engineer) or Supervisor can special-accept a material."));
 
-        var pre = await PreludeAsync(id, actor, role, "prepress_material_special_accept");
+        var pre = await PreludeAsync(id, actor, role, "prepress_material_special_accept",
+            allowAfterIpqcApproved: true);
         if (pre.Error is not null) return pre.Error;
 
         // Special accept needs a real defect code; the justification note is
@@ -435,7 +436,8 @@ public sealed class PrepressController : WoMutationControllerBase
     // base; only the extra conflict field + phase guard keep it inline. Flagged
     // in the A2 report. NormalizeETag now resolves to the base static.
     private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
-        long id, string actor, string role, string attemptedAction)
+        long id, string actor, string role, string attemptedAction,
+        bool allowAfterIpqcApproved = false)
     {
         // Idempotency-Key required for ALL writes (matches /advance).
         var idemKey = Request.Headers["Idempotency-Key"].ToString();
@@ -494,10 +496,35 @@ public sealed class PrepressController : WoMutationControllerBase
 
         // State guard: MesPhase MUST be PREPRESS or NEW (§5.2). Outside →
         // 422 invalid_phase (semantic guard, NOT concurrency drift).
-        if (wo.MesPhase != "PREPRESS" && wo.MesPhase != "NEW")
+        //
+        // NGOẠI LỆ DUY NHẤT — Special Accept ở IPQC_APPROVED. Đo 2026-09-18:
+        // cổng /run/start từ chối WO và bảo người đứng máy "nhờ kỹ sư chấp
+        // nhận đặc biệt", nhưng chính endpoint special-accept lại bị guard này
+        // trả 422 — đường xả mà câu báo lỗi chỉ tới thì không tồn tại, và WO
+        // kẹt cứng: không sửa được, không chạy được, không huỷ mà không mất
+        // toàn bộ IPQC đã ký. Trạng thái lô có thể đổi SAU Pre-press (IQC tái
+        // kiểm, khiếu nại NCC) nên tình huống này là thường, không phải hi hữu.
+        //
+        // Mở HẸP có chủ ý: chỉ special-accept, chỉ ở IPQC_APPROVED.
+        //   · PUT /materials thường VẪN chỉ PREPRESS — không ai được lặng lẽ
+        //     bật một dòng thành Ok sau khi IPQC đã ký, mà không để lại nhân
+        //     nhượng nào trong hồ sơ.
+        //   · special-accept thì ngược lại: role-gate Engineer/Supervisor +
+        //     quyền CapSpecialAccept, BẮT mã lỗi, và emit audit special_accept.
+        //     Nó đã là quyết định có chữ ký, nên cho phép muộn không nới lỏng
+        //     gì — chỉ khiến nó dùng được đúng lúc cần.
+        //   · KHÔNG đổi MesPhase. Ma trận transition §3.1 (IPQC_APPROVED →
+        //     PREPRESS = blocked) không bị đụng tới. Đây là guard ghi-bảng-con
+        //     §5.2, mà §5.2 chưa từng liệt kê endpoint special-accept.
+        var phaseOk = wo.MesPhase is "PREPRESS" or "NEW"
+            || (allowAfterIpqcApproved && wo.MesPhase == "IPQC_APPROVED");
+        if (!phaseOk)
         {
+            var allowed = allowAfterIpqcApproved
+                ? "{NEW, PREPRESS, IPQC_APPROVED}"
+                : "{NEW, PREPRESS}";
             return (UnprocessableEntity(ApiError.Of("wo.invalid_phase",
-                $"PREPRESS row writes require MesPhase ∈ {{NEW, PREPRESS}}; current = {wo.MesPhase}.")), null);
+                $"PREPRESS row writes require MesPhase ∈ {allowed}; current = {wo.MesPhase}.")), null);
         }
 
         return (null, wo);

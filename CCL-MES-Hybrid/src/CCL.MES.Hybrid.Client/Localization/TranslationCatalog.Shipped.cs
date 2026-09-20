@@ -54,5 +54,16 @@ public sealed partial class TranslationCatalog
         Add("shipped.judgment.gorun",       "Cho chạy",                        "Go Run");
         Add("shipped.judgment.stopline",    "Dừng chuyền",                     "Stop Line");
         Add("shipped.judgment.specialaccept", "Chấp nhận đặc biệt",            "Special Accept");
+
+        // Thời gian từng công đoạn (§5.7). "Lượt" = số lần WO vào công đoạn;
+        // >1 nghĩa là đã bị trả về.
+        Add("shipped.phases.title",         "Thời gian theo công đoạn",        "Time by stage");
+        Add("shipped.phases.total",         "Tổng",                            "Total");
+        Add("shipped.phases.open",          "đang ở đây",                      "currently here");
+        Add("shipped.phases.rework",        "{0} lượt",                        "{0} visits");
+        Add("shipped.phases.rework.hint",   "WO đã bị trả về công đoạn này — mỗi lượt được tính riêng.",
+                                            "The WO was sent back to this stage — every visit is counted separately.");
+        Add("shipped.phases.empty",         "Chưa có mốc công đoạn nào cho WO này.",
+                                            "No stage timestamps recorded for this WO yet.");
     }
 }

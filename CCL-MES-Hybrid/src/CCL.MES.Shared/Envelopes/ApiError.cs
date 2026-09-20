@@ -21,4 +21,17 @@ public sealed record ApiError
 
     public static ApiError Of(string code, string messageEn) =>
         new() { Code = code, MessageEn = messageEn };
+
+    /// <summary>
+    /// Bản có <see cref="Details"/> — dùng khi câu tiếng Việt ở client cần
+    /// DỮ KIỆN của lỗi (mã vật tư, số dòng, số lô…), không chỉ mã lỗi.
+    ///
+    /// <para><b>Vì sao không nhét vào <see cref="MessageEn"/>.</b> Client dịch
+    /// theo <see cref="Code"/> và VỨT <c>MessageEn</c> đi, nên mọi dữ kiện chỉ
+    /// nằm trong chuỗi tiếng Anh là mất trắng trước mắt người đứng máy. Đo
+    /// 2026-09-18: server nói rõ dòng nào mã nào, màn hình chỉ hiện một câu
+    /// chung chung, người vận hành không biết sờ vào đâu.</para>
+    /// </summary>
+    public static ApiError Of(string code, string messageEn, Dictionary<string, string> details) =>
+        new() { Code = code, MessageEn = messageEn, Details = details };
 }

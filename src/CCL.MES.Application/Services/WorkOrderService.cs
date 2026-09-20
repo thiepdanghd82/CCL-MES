@@ -398,6 +398,14 @@ public class WorkOrderService
         // source of truth.
         wo.MesPhase = WorkOrderStateMachine.ProjectFromLegacy(next).ToString();
 
+        // Đóng dấu actor NGAY TẠI lần ghi này. Trước đây đường /advance là
+        // đường duy nhất đổi MesPhase mà không chạm UpdatedAt/UpdatedBy —
+        // `user` chỉ đi vào audit row sau đó. Hệ quả đo được: mốc thời gian
+        // công đoạn (WoPhaseSpan) ghi "system", và UpdatedBy trên WO giữ tên
+        // người sửa TRƯỚC, tức nói sai ai vừa đẩy WO đi.
+        wo.UpdatedAt = DateTime.UtcNow;
+        wo.UpdatedBy = user ?? "system";
+
         await _db.SaveChangesAsync();
         // Phase 6 Bước 5 — emit WO_ADVANCE with from/to step.
         await _audit.EmitAsync(

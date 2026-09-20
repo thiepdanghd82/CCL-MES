@@ -727,6 +727,15 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
         // it is resolved here and handed to the pure builder as a plain result.
         var speed = await _wcSpeed.ResolveAsync(wo.WoNo, wo.MachineCode, ct);
 
+        // Mốc công đoạn (§5.7) — rỗng với WO chạy trước migration AddWoPhaseSpan.
+        // Chỉ nạp dữ liệu; gom nhóm + tính 3 chỉ số nằm trong builder thuần.
+        var phaseSpans = await _db.WoPhaseSpans.AsNoTracking()
+            .Where(sp => sp.WoId == id)
+            .OrderBy(sp => sp.StartedAt)
+            .Select(sp => new Services.WoSummaryPhaseSpanInput(
+                sp.Phase, sp.VisitNo, sp.StartedAt, sp.EndedAt))
+            .ToListAsync(ct);
+
         // QC summary — load all 3 legs (IPQC + FQC + OQC). Some may be absent
         // if the WO never reached that phase; the builder renders those Pending.
         var checks = await _db.WoQcChecks.AsNoTracking()
@@ -778,6 +787,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
             Now = DateTime.UtcNow,
             Sessions = sessions,
             PauseEvents = pauseEvents,
+            PhaseSpans = phaseSpans,
             WorkCenterResolved = speed.Resolved,
             IdealSpeedPcsH = speed.IdealSpeedPcsH,
             Ipqc = ipqcRow is null ? null : new Services.WoSummaryIpqcInput

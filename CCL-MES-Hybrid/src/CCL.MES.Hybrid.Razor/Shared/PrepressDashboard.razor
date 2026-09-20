@@ -111,7 +111,14 @@
             </div>
         }
 
-        @if (HwOptions.Value.ScanEnabled)
+        @if (SpecialAcceptOnly)
+        {
+            <div class="prepress-remediation-note" data-testid="prepress-remediation-note">
+                @T("prepress.remediation.body")
+            </div>
+        }
+
+        @if (HwOptions.Value.ScanEnabled && !SpecialAcceptOnly)
         {
             <div class="prepress-scan-bar" data-testid="prepress-scan-bar">
                 <label class="prepress-scan-label" for="prepress-scan-input">@T("prepress.scan.label")</label>
@@ -144,18 +151,27 @@
                          OnSetMaterial="OnSetMaterial"
                          OnPartScanInput="OnPartScanInput"
                          OnPartScanCommit="OnPartScanCommit"
-                         OnSpecialAccept="OnSpecialAccept" />
+                         OnSpecialAccept="OnSpecialAccept"
+                         SpecialAcceptOnly="SpecialAcceptOnly" />
 
-        <WoPlateCheck Row="_view.PlateCheck"
-                      Busy="_busy"
-                      ScrapReasons="_scrapReasons"
-                      OnSetPlate="OnSetPlate" />
+        @* Kẽm + dao KHÔNG hiện ở chế độ khắc phục muộn: PUT của chúng vẫn chỉ
+           nhận MesPhase = PREPRESS, nên hiện ra chỉ là hai bảng bấm-là-lỗi.
+           Chúng cũng không nằm trong cổng /run/start (cổng chỉ soi vật tư). *@
+        @if (!SpecialAcceptOnly)
+        {
+            <WoPlateCheck Row="_view.PlateCheck"
+                          Busy="_busy"
+                          ScrapReasons="_scrapReasons"
+                          OnSetPlate="OnSetPlate" />
 
-        <WoCutterCheck Row="_view.CutterCheck"
-                       Busy="_busy"
-                       ScrapReasons="_scrapReasons"
-                       OnSetCutter="OnSetCutter" />
+            <WoCutterCheck Row="_view.CutterCheck"
+                           Busy="_busy"
+                           ScrapReasons="_scrapReasons"
+                           OnSetCutter="OnSetCutter" />
+        }
 
+        @if (!SpecialAcceptOnly)
+        {
         <div class="prepress-advance-bar">
             <button type="button"
                     class="op-btn op-btn-primary prepress-advance-btn"
@@ -171,12 +187,22 @@
                 </span>
             }
         </div>
+        }
     }
 </div>
 
 @code {
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
     [Parameter] public EventCallback OnAdvanceRequested { get; set; }
+
+    /// <summary>
+    /// Bảng này đang được mở như một PANEL KHẮC PHỤC, không phải màn Pre-press
+    /// bình thường: WO đã ở IPQC_APPROVED và cổng /run/start vừa chặn vì một
+    /// dòng vật tư. Chỉ Special Accept còn ghi được (xem ngoại lệ ở
+    /// <c>PrepressController.PreludeAsync</c>), nên tắt hết những gì sẽ ăn 422:
+    /// quét, kẽm, dao, và nút chuyển bước.
+    /// </summary>
+    [Parameter] public bool SpecialAcceptOnly { get; set; }
 
     private PrepressView? _view;
     private string? _initialError;

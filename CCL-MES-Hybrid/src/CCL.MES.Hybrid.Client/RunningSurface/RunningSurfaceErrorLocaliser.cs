@@ -24,10 +24,11 @@ public static class RunningSurfaceErrorLocaliser
             "wo.idempotency_key_required"           => "Yêu cầu thiếu khoá chống trùng — báo IT.",
             "running.setting_not_started"           => "Lệnh chưa vào bước cài đặt nên chưa Hoàn tất được — nạp lại màn hình.",
             "running.invalid_body"                  => "Dữ liệu gửi lên không hợp lệ — báo IT.",
-            // Lô bị IQC đánh trượt SAU khi Pre-press đã gắn. Câu phải nói rõ
-            // HAI đường ra, vì lúc này WO đã qua Pre-press nên người vận hành
-            // không tự sửa dòng vật tư được nữa.
-            "run.material_lot_unusable"             => "Có lô vật tư không còn được IQC thả — thay lô, hoặc nhờ kỹ sư chấp nhận đặc biệt, rồi mới chạy máy.",
+            // Hai mã dưới đây là HAI việc khác nhau — xem MaterialLineBlock.
+            // Cả hai đều phải nói DÒNG NÀO, MÃ NÀO: một WO có nhiều dòng vật
+            // tư, câu chung chung thì người đứng máy không biết sờ vào đâu.
+            "run.material_line_unchecked"           => LineUnchecked(error),
+            "run.material_lot_unusable"             => LotUnusable(error),
             "running.invalid_qty_delta"             => "Số lượng phải lớn hơn 0 — muốn trừ bớt thì dùng \"Sửa sản lượng\".",
             "running.invalid_reason_code"           => "Mã lý do không có trong danh mục — chọn một mã trong danh sách.",
             "running.invalid_ng_note"               => "Nhập số lượng NG thì bắt buộc ghi mô tả (1–500 ký tự).",
@@ -41,6 +42,65 @@ public static class RunningSurfaceErrorLocaliser
             "setting.incomplete"                    => "Còn hạng mục cài đặt chưa OK — xác nhận hết rồi mới Hoàn tất được.",
             _                                       => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
+
+    /// <summary>
+    /// "Dòng 2 · 30032127" — cụm định danh dòng, dựng từ
+    /// <see cref="ApiError.Details"/>. Thiếu dữ kiện (server cũ, hoặc lỗi
+    /// dựng từ nơi khác) thì trả chuỗi rỗng và câu gọi nó phải vẫn đọc được —
+    /// nên mọi chỗ dùng đều nối có điều kiện, không nối thẳng.
+    /// </summary>
+    private static string LineLabel(ApiError error)
+    {
+        var d = error.Details;
+        if (d is null) return "";
+        d.TryGetValue("bom_line_idx", out var idx);
+        d.TryGetValue("material_code", out var code);
+        var hasIdx = !string.IsNullOrWhiteSpace(idx);
+        var hasCode = !string.IsNullOrWhiteSpace(code);
+        if (!hasIdx && !hasCode) return "";
+        if (!hasCode) return $"dòng {idx}";
+        return hasIdx ? $"dòng {idx} · {code}" : code!;
+    }
+
+    /// <summary>"(và 2 dòng nữa)" — chỉ hiện khi thật sự có dòng khác.</summary>
+    private static string MoreLabel(ApiError error)
+    {
+        if (error.Details is null) return "";
+        if (!error.Details.TryGetValue("more_count", out var raw)) return "";
+        return int.TryParse(raw, out var n) && n > 0 ? $" (và {n} dòng nữa)" : "";
+    }
+
+    /// <summary>
+    /// Dòng vật tư CHƯA ĐƯỢC KIỂM ở Pre-press. Việc phải làm là quét và xác
+    /// nhận dòng đó — KHÔNG phải đổi lô, cũng KHÔNG phải xin chấp nhận đặc
+    /// biệt. Câu cũ gộp chung với lỗi lô nên chỉ sai việc (đo 2026-09-18,
+    /// WO-TEST-02: hai dòng Pending bị báo là "lô không còn được IQC thả").
+    /// </summary>
+    private static string LineUnchecked(ApiError error)
+    {
+        var who = LineLabel(error);
+        var head = string.IsNullOrEmpty(who)
+            ? "Còn dòng vật tư chưa được xác nhận ở bước Chuẩn bị"
+            : $"Vật tư {who} chưa được xác nhận ở bước Chuẩn bị";
+        return head + MoreLabel(error) + " — xác nhận dòng đó với lô đã được IQC thả, rồi mới chạy máy.";
+    }
+
+    /// <summary>
+    /// Lô bị IQC đánh trượt SAU khi Pre-press đã gắn. Câu phải nói rõ HAI
+    /// đường ra, vì lúc này WO đã qua Pre-press nên người vận hành không tự
+    /// sửa dòng vật tư được nữa.
+    /// </summary>
+    private static string LotUnusable(ApiError error)
+    {
+        var who = LineLabel(error);
+        var lotNo = error.Details is not null
+            && error.Details.TryGetValue("lot_no", out var l) && !string.IsNullOrWhiteSpace(l)
+            ? $" (lô {l})" : "";
+        var head = string.IsNullOrEmpty(who)
+            ? "Có lô vật tư không còn được IQC thả"
+            : $"Vật tư {who}{lotNo} không còn được IQC thả";
+        return head + MoreLabel(error) + " — thay lô, hoặc nhờ kỹ sư chấp nhận đặc biệt, rồi mới chạy máy.";
+    }
 
     /// <summary>Localise an in-band <see cref="CCL.MES.Shared.RunningSurface.RunningSurfaceSetResponse.ErrorCode"/>
     /// (returned on 200 / 409) into the banner. The 409 path's

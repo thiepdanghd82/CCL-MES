@@ -150,6 +150,61 @@
             </div>
         }
 
+        @* ── Thời gian theo công đoạn (§5.7) ──────────────────────── *@
+        @* Đặt NGAY TRƯỚC khối QC vì nó trả lời câu hỏi kế tiếp của người đọc:
+           thấy Pareto biết máy dừng vì gì, thì hỏi tiếp WO nằm ở đâu lâu nhất.
+           KHÔNG gộp vào khối OEE — hàng đợi + kiểm tra không phải run time. *@
+        @if (_report.PhaseBreakdown.Count > 0)
+        {
+            <div class="rs-card shipped-phases" data-testid="shipped-phase-breakdown">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">@T("shipped.phases.title")</div>
+                    <div class="rs-card-pill" data-testid="shipped-phase-total">
+                        @T("shipped.phases.total") <span class="scan-mono">@FormatDuration(_report.PhaseTotalSeconds)</span>
+                    </div>
+                </div>
+                <div class="shipped-phase-rows">
+                    @{ var maxPhaseSec = Math.Max(1L, _report.PhaseBreakdown.Max(r => r.TotalSeconds)); }
+                    @foreach (var row in _report.PhaseBreakdown)
+                    {
+                        var pct = (double)row.TotalSeconds / maxPhaseSec * 100.0;
+                        <div class="shipped-phase-row @(row.VisitCount > 1 ? "has-rework" : "")"
+                             data-testid="@($"shipped-phase-{row.Phase}")">
+                            <span class="shipped-phase-label">
+                                @* Tên co được + ellipsis nằm ở span RIÊNG. Để
+                                   overflow:hidden trên cả cụm thì chip "đang ở
+                                   đây" bị cắt cụt thành "đan" — đo được ở
+                                   shopfloor, và không gate nào bắt được. *@
+                                <span class="shipped-phase-name">@PhaseText(row.Phase)</span>
+                                @if (row.IsOpen)
+                                {
+                                    <span class="shipped-phase-open">@T("shipped.phases.open")</span>
+                                }
+                            </span>
+                            <div class="shipped-pareto-bar-track">
+                                <div class="shipped-phase-bar" style="width: @(pct.ToString("F1"))%"></div>
+                            </div>
+                            <span class="shipped-phase-value scan-mono">@FormatDuration(row.TotalSeconds)</span>
+                            @if (row.VisitCount > 1)
+                            {
+                                @* Chỉ hiện khi CÓ rework — "1 lượt" không phải tin tức,
+                                   và một cột toàn "1 lượt" làm chìm mất dòng đáng nhìn. *@
+                                <span class="shipped-phase-rework"
+                                      title="@T("shipped.phases.rework.hint")"
+                                      data-testid="@($"shipped-phase-rework-{row.Phase}")">
+                                    @T("shipped.phases.rework", row.VisitCount)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="shipped-phase-rework-none" aria-hidden="true"></span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         @* ── 3-leg QC summary ────────────────────────────────────── *@
         <div class="rs-card shipped-qc" data-testid="shipped-qc-summary">
             <div class="rs-card-head"><div class="rs-card-title">@T("shipped.qc.summary")</div></div>

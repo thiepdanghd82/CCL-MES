@@ -43,6 +43,11 @@ public abstract class WoMutationControllerBase : ControllerBase
     protected IActionResult Invalid(string code, string detail)
         => UnprocessableEntity(ApiError.Of(code, detail));
 
+    /// <summary>422 kèm dữ kiện máy đọc được — xem
+    /// <see cref="ApiError.Of(string, string, Dictionary{string, string})"/>.</summary>
+    protected IActionResult Invalid(string code, string detail, Dictionary<string, string> details)
+        => UnprocessableEntity(ApiError.Of(code, detail, details));
+
     /// <summary>
     /// Shared prelude. Byte-identical to the per-controller preludes it
     /// replaces; the ONLY per-controller difference is the typed 409 body,

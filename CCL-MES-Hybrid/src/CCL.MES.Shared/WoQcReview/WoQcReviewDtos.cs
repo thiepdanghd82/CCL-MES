@@ -217,6 +217,51 @@ public sealed record WoSummaryReport
     public WoSummaryOee Oee { get; init; } = new();
     public IReadOnlyList<WoSummaryParetoRow> PausePareto { get; init; } = Array.Empty<WoSummaryParetoRow>();
     public WoSummaryQc QcSummary { get; init; } = new();
+
+    /// <summary>
+    /// Thời gian WO nằm ở từng công đoạn hàng-đợi/kiểm-tra (PREPRESS · IPQC ·
+    /// QA · FQC · OQC), từ <c>WoPhaseSpan</c> — xem hợp đồng §5.7.
+    ///
+    /// <para><b>KHÔNG</b> cộng vào mẫu số availability của <see cref="Oee"/>.
+    /// Đây là hàng đợi + kiểm tra, không phải machine run time; gộp vào là
+    /// âm thầm định nghĩa lại một chỉ số đã công bố. Khối này đứng RIÊNG,
+    /// đúng như §5.7 chốt.</para>
+    ///
+    /// <para>Rỗng với WO chạy trước migration <c>AddWoPhaseSpan</c> — cố ý
+    /// không backfill, vì bịa mốc từ <c>CreatedAt</c> sẽ đẻ ra những con số
+    /// "PREPRESS 40 ngày" trông y như thật.</para>
+    /// </summary>
+    public IReadOnlyList<WoSummaryPhaseRow> PhaseBreakdown { get; init; } = Array.Empty<WoSummaryPhaseRow>();
+
+    /// <summary>Tổng thời gian WO đã nằm ở TẤT CẢ công đoạn đo được — lead
+    /// time đầu-cuối. Chỉ cộng những gì có trong <see cref="PhaseBreakdown"/>,
+    /// nên nó nhỏ hơn thời gian thực của WO cũ (không có span) và điều đó là
+    /// đúng: thà thiếu còn hơn bịa.</summary>
+    public long PhaseTotalSeconds { get; init; }
+}
+
+/// <summary>Một công đoạn trong <see cref="WoSummaryReport.PhaseBreakdown"/>.
+/// Ba con số, ba câu hỏi khác nhau — xem §5.7 "Ba chỉ số rework".</summary>
+public sealed record WoSummaryPhaseRow
+{
+    /// <summary>Tên <c>MesPhase</c> chính tắc (PREPRESS, IPQC_WAIT…).</summary>
+    public string Phase { get; init; } = "";
+
+    /// <summary>Tổng mọi lần vào. Đây là con số MẶC ĐỊNH cho hạch toán thời
+    /// gian: WO vào IPQC 3 lần thì nó thật sự chiếm 3 suất IPQC.</summary>
+    public long TotalSeconds { get; init; }
+
+    /// <summary>Riêng lần vào GẦN NHẤT — cycle-time của trạm, dùng để
+    /// benchmark một lượt kiểm mất bao lâu.</summary>
+    public long LastSeconds { get; init; }
+
+    /// <summary>Số lần WO vào công đoạn này. <c>&gt; 1</c> = ĐÃ BỊ TRẢ VỀ.
+    /// Chỉ số rework — trước khi có bảng span, con số này vô hình hoàn toàn.</summary>
+    public int VisitCount { get; init; }
+
+    /// <summary>WO còn đang ở trong công đoạn này (lần vào cuối chưa đóng);
+    /// khi đó <see cref="TotalSeconds"/> chạy tới "bây giờ".</summary>
+    public bool IsOpen { get; init; }
 }
 
 public sealed record WoSummaryTotals
