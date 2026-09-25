@@ -77,6 +77,25 @@ public class WoMaterial : BaseEntity
 
     public string? CheckedBy { get; set; }
     public DateTime? CheckedAt { get; set; }
+
+    // ── D3 (Henry chốt 2026-09-25): dấu duyệt sai lệch IPQC ──────────
+    // Duyệt 4 mắt ở IPQC (WoIpqcMaterialCheck, Approve) GHI XUỐNG đây để cổng
+    // /run/start vẫn chỉ đọc MỘT bảng. Tách khỏi NgReasonCode (dấu Special
+    // Accept của kỹ sư) để IPQC Reject gỡ được dấu của mình mà không xoá
+    // nhầm dấu kia. Có hiệu lực CHỈ với đúng lô + đúng trạng thái lô lúc ký —
+    // xem MaterialsReadinessRollup.HasValidIpqcWaiver. Contract §5.8.
+
+    /// <summary>Người KÝ duyệt sai lệch ở IPQC (không phải phiên đăng nhập).</summary>
+    public string? IpqcWaiverBy { get; set; }
+    public DateTime? IpqcWaiverAt { get; set; }
+    public string? IpqcWaiverReason { get; set; }
+
+    /// <summary>Lô được ký — đổi lô khác thì dấu hết hiệu lực.</summary>
+    public string? IpqcWaiverLotNo { get; set; }
+
+    /// <summary>Trạng thái lô ĐÃ ĐÓNG BĂNG lúc IPQC xác nhận — lô đổi trạng
+    /// thái sau đó (IQC tái kiểm) thì dấu hết hiệu lực. Null = lô chưa đăng ký.</summary>
+    public string? IpqcWaiverLotStatus { get; set; }
 }
 
 /// <summary>

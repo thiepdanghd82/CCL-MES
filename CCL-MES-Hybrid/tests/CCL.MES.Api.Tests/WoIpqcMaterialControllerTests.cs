@@ -465,6 +465,114 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("IPQC_APPROVED", body!.MesPhase);
     }
 
+    // ── D3 (Henry chốt 2026-09-25, contract §5.8) ─────────────────
+    // Tái hiện đúng ca WO-TEST-02: IPQC đã ký duyệt sai lệch 4 mắt mà
+    // /run/start vẫn báo "lô không còn được IQC thả". Nay chữ ký được ghi
+    // xuống WoMaterials và cổng công nhận nó.
+
+    /// <summary>Line 0 divergent (no lot), Pre-press đã Ok, QC xác nhận IPQC →
+    /// PendingEngineer. Trả WO + tên kỹ sư ký.</summary>
+    private async Task<long> SeedDivergentLineConfirmedAsync(string tag, string? engineerSaCode = null)
+    {
+        var (wo, etag) = await SeedWoAsync("IPQC_WAIT");
+        await SeedMaterialAsync(wo, 0, "D3" + tag, matched: false);
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var m = await db.WoMaterials.SingleAsync(x => x.WorkOrderId == wo && x.BomLineIdx == 0);
+            m.Status = PrepressCheckStatus.Ok;
+            m.NgReasonCode = engineerSaCode;
+            await db.SaveChangesAsync();
+        }
+        var qc = await ClientAsync($"qc-d3-{tag}", UserRole.Qc);
+        var c = await qc.SendAsync(Mk(HttpMethod.Put, PutPath(wo, 0), "{\"status\":\"Ok\"}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, c.StatusCode);
+        return wo;
+    }
+
+    private readonly Dictionary<string, HttpClient> _engineers = new();
+
+    private async Task<HttpResponseMessage> DecideAsync(long wo, string outcome, string engineer)
+    {
+        if (!_engineers.TryGetValue(engineer, out var eng))
+            _engineers[engineer] = eng = await ClientAsync(engineer, UserRole.Engineer);
+        return await eng.SendAsync(Mk(HttpMethod.Post, ApprovePath(wo, 0),
+            Sign(outcome, "Lô thay thế đã kiểm", engineer), $"\"{await EtagAsync(wo)}\"", Guid.NewGuid().ToString()));
+    }
+
+    private async Task<HttpResponseMessage> RunStartAsync(long wo, string tag)
+    {
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var w = await db.WorkOrders.SingleAsync(x => x.Id == wo);
+            w.MesPhase = "IPQC_APPROVED";
+            await db.SaveChangesAsync();
+        }
+        await _fx.SeedUserAsync($"op-d3-{tag}", "P@ss!1", UserRole.Operator);
+        var op = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(op, $"op-d3-{tag}", "P@ss!1");
+        return await op.SendAsync(Mk(HttpMethod.Post, $"/api/v2/work-orders/{wo}/run/start",
+            "{}", $"\"{await EtagAsync(wo)}\"", Guid.NewGuid().ToString()));
+    }
+
+    private async Task<WoMaterial> LineAsync(long wo)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        return await db.WoMaterials.AsNoTracking().SingleAsync(x => x.WorkOrderId == wo && x.BomLineIdx == 0);
+    }
+
+    [Fact]
+    public async Task D3_approve_writes_waiver_to_prepress_line_and_run_start_passes()
+    {
+        var wo = await SeedDivergentLineConfirmedAsync("ok");
+
+        var appr = await DecideAsync(wo, "Approve", "eng-d3-ok");
+        Assert.Equal(HttpStatusCode.OK, appr.StatusCode);
+
+        var line = await LineAsync(wo);
+        Assert.Equal("eng-d3-ok", line.IpqcWaiverBy);          // NGƯỜI KÝ, không phải phiên
+        Assert.NotNull(line.IpqcWaiverAt);
+        Assert.Equal("Lô thay thế đã kiểm", line.IpqcWaiverReason);
+        Assert.Equal(line.LotNo, line.IpqcWaiverLotNo);
+        Assert.Null(line.NgReasonCode);                          // KHÔNG giả làm Special Accept
+
+        var run = await RunStartAsync(wo, "ok");
+        Assert.True(run.StatusCode == HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task D3_reject_after_approve_clears_waiver_and_run_start_blocks_again()
+    {
+        var wo = await SeedDivergentLineConfirmedAsync("rej");
+        Assert.Equal(HttpStatusCode.OK, (await DecideAsync(wo, "Approve", "eng-d3-rej")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await DecideAsync(wo, "Reject", "eng-d3-rej")).StatusCode);
+
+        var line = await LineAsync(wo);
+        Assert.Null(line.IpqcWaiverAt);
+        Assert.Null(line.IpqcWaiverBy);
+        Assert.Null(line.IpqcWaiverLotNo);
+
+        var run = await RunStartAsync(wo, "rej");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, run.StatusCode);
+        var err = await run.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("run.material_lot_unusable", err!.Code);
+    }
+
+    [Fact]
+    public async Task D3_reject_never_touches_engineer_special_accept_mark()
+    {
+        await SeedScrapReasonAsync("SC-D3-SA");
+        var wo = await SeedDivergentLineConfirmedAsync("sa", engineerSaCode: "SC-D3-SA");
+        Assert.Equal(HttpStatusCode.OK, (await DecideAsync(wo, "Approve", "eng-d3-sa")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await DecideAsync(wo, "Reject", "eng-d3-sa")).StatusCode);
+
+        var line = await LineAsync(wo);
+        Assert.Null(line.IpqcWaiverAt);
+        Assert.Equal("SC-D3-SA", line.NgReasonCode);             // dấu của kỹ sư còn nguyên
+    }
+
     // ── Audit wire-mirror (R7.3) ──────────────────────────────────
 
     [Fact]

@@ -122,11 +122,24 @@ public static class MaterialsReadinessRollup
         if (m.Status != PrepressCheckStatus.Ok) return MaterialLineBlock.NotChecked;
         if (!string.IsNullOrWhiteSpace(m.NgReasonCode)) return MaterialLineBlock.None; // đã Special Accept
         if (isInHouse) return MaterialLineBlock.None;                                  // bán thành phẩm — xem <param>
+        if (HasValidIpqcWaiver(m, lotStatus)) return MaterialLineBlock.None;           // D3 — IPQC đã duyệt sai lệch
         return string.Equals(lotStatus, nameof(MaterialLotStatus.Released),
                              StringComparison.OrdinalIgnoreCase)
             ? MaterialLineBlock.None
             : MaterialLineBlock.LotNotReleased;
     }
+
+    /// <summary>
+    /// D3 (contract §5.8) — dấu duyệt sai lệch 4 mắt của IPQC chỉ có hiệu lực
+    /// khi dòng VẪN đang gắn đúng lô đã ký, và lô VẪN ở đúng trạng thái đã
+    /// đóng băng lúc ký. IQC tái kiểm đổi trạng thái lô sau đó ⇒ chữ ký không
+    /// còn nói về lô này nữa ⇒ chặn lại. Không che được <c>NotChecked</c>:
+    /// duyệt sai lệch lô không thay cho việc Pre-press chưa xác nhận dòng.
+    /// </summary>
+    public static bool HasValidIpqcWaiver(WoMaterial m, string? lotStatus)
+        => m.IpqcWaiverAt is not null
+        && string.Equals(m.LotNo?.Trim(), m.IpqcWaiverLotNo?.Trim(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(lotStatus, m.IpqcWaiverLotStatus, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Bản có CỔNG LÔ. <paramref name="lotStatusOf"/> trả trạng thái lô đang
