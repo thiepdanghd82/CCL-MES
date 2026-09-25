@@ -81,6 +81,11 @@ public sealed class IpqcMaterialMaterializer
         return await BuildViewAsync(wo, ct);
     }
 
+    /// <summary>D3 — dòng Pre-press (tracked) mà waiver IPQC ghi xuống; null khi
+    /// WO không có dòng BOM đó (WO cũ trước 7b).</summary>
+    public Task<WoMaterial?> GetPrepressLineForMutationAsync(long woId, int bomLineIdx, CancellationToken ct = default)
+        => _db.WoMaterials.FirstOrDefaultAsync(m => m.WorkOrderId == woId && m.BomLineIdx == bomLineIdx, ct);
+
     /// <summary>Mutation path: return the tracked rows (materialise all if none
     /// exist yet — no SaveChanges; the executor commits).</summary>
     public async Task<List<WoIpqcMaterialCheck>> GetOrCreateRowsForMutationAsync(long woId, CancellationToken ct = default)

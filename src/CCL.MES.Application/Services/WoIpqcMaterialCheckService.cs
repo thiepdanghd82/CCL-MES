@@ -78,6 +78,36 @@ public static class WoIpqcMaterialCheckService
         row.ApprovalReason = reason;
     }
 
+    /// <summary>
+    /// D3 (contract §5.8) — ghi quyết định waiver xuống dòng Pre-press để cổng
+    /// <c>/run/start</c> vẫn chỉ đọc <see cref="WoMaterial"/>. Approve đóng dấu
+    /// người ký · lý do · lô hiện gắn · trạng thái lô ĐÃ ĐÓNG BĂNG lúc xác nhận
+    /// IPQC. Reject GỠ dấu IPQC (dòng quay lại bị chặn) — không đụng
+    /// <c>NgReasonCode</c> vì đó là dấu Special Accept của kỹ sư.
+    /// Trả về true khi dòng thực sự đổi (để ghi vào audit).
+    /// </summary>
+    public static bool ApplyWaiverToMaterial(
+        WoMaterial mat, WoIpqcMaterialCheck row, bool approve, string signer, string reason, DateTime now)
+    {
+        if (!approve)
+        {
+            if (mat.IpqcWaiverAt is null) return false;
+            mat.IpqcWaiverBy = null;
+            mat.IpqcWaiverAt = null;
+            mat.IpqcWaiverReason = null;
+            mat.IpqcWaiverLotNo = null;
+            mat.IpqcWaiverLotStatus = null;
+            return true;
+        }
+
+        mat.IpqcWaiverBy = signer;
+        mat.IpqcWaiverAt = now;
+        mat.IpqcWaiverReason = reason;
+        mat.IpqcWaiverLotNo = mat.LotNo;
+        mat.IpqcWaiverLotStatus = row.MaterialLotStatusSnapshot;
+        return true;
+    }
+
     /// <summary>Dual-sig guard (Q1). Returns false (violation) when the flag is
     /// ON and the approver equals the row's confirmer (case-insensitive).</summary>
     public static bool ValidateDistinctWaiver(string? confirmedBy, string approver, bool required)

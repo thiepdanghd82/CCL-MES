@@ -228,7 +228,14 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
 
         // Hồ sơ đứng tên NGƯỜI KÝ. Ghi tên phiên thì trên máy dùng chung mọi
         // waiver sẽ mang cùng một tên và truy trách nhiệm thành vô nghĩa.
-        WoIpqcMaterialCheckService.ApproveDivergence(row, approve, req.Reason!, signer, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        WoIpqcMaterialCheckService.ApproveDivergence(row, approve, req.Reason!, signer, now);
+
+        // D3 (contract §5.8) — ghi xuống dòng Pre-press, CÙNG SaveChanges với
+        // quyết định waiver: cổng /run/start chỉ đọc WoMaterials.
+        var prepressLine = await _materializer.GetPrepressLineForMutationAsync(id, bomLineIdx, ct);
+        var gateUpdated = prepressLine is not null
+            && WoIpqcMaterialCheckService.ApplyWaiverToMaterial(prepressLine, row, approve, signer, req.Reason!, now);
 
         return await CommitAndAuditAsync(id, wo, rows, row, actor, role,
             AuditAction.WoIpqcMaterialApprove,
@@ -242,6 +249,9 @@ public sealed class WoIpqcMaterialController : WoMutationControllerBase
                 confirmed_by = row.ConfirmedBy,
                 approved_by = actor,
                 flag_state = _waiver.FlagState,
+                run_gate_updated = gateUpdated,
+                waived_lot_no = approve ? prepressLine?.LotNo : null,
+                waived_lot_status = approve ? row.MaterialLotStatusSnapshot : null,
             });
     }
 
