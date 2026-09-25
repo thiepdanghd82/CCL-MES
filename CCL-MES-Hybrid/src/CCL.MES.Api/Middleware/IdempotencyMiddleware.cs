@@ -182,16 +182,29 @@ public sealed class IdempotencyMiddleware
         }
         catch
         {
-            // Restore body + don't store partial response. TTL will
-            // sweep the in-flight row.
+            // Restore body + release the key so a retry runs for real
+            // (a stuck in-flight row would answer 409 until TTL).
             ctx.Response.Body = originalBody;
+            await ReleaseKeyAsync(db, row.Id);
             throw;
         }
 
-        // Persist response (truncate over the cap).
         buffer.Position = 0;
-        var maxBytes = opts.Value.MaxStoredResponseBytes;
         var responseBytes = buffer.ToArray();
+
+        // Contract §6.2 replays SUCCESS only. A 4xx/5xx is not stored:
+        // once the operator fixes the cause, the same key must execute
+        // again instead of replaying the old error.
+        if (ctx.Response.StatusCode is < 200 or > 299)
+        {
+            await ReleaseKeyAsync(db, row.Id);
+            ctx.Response.Body = originalBody;
+            await ctx.Response.Body.WriteAsync(responseBytes);
+            return;
+        }
+
+        // Persist response (truncate over the cap).
+        var maxBytes = opts.Value.MaxStoredResponseBytes;
         var bodyToStore = responseBytes.Length > maxBytes
             ? Encoding.UTF8.GetString(responseBytes, 0, maxBytes)
             : Encoding.UTF8.GetString(responseBytes);
@@ -264,6 +277,12 @@ public sealed class IdempotencyMiddleware
         };
         await ctx.Response.WriteAsync(JsonSerializer.Serialize(problem));
     }
+
+    // ExecuteDelete, NOT Remove+SaveChanges: the failed downstream call
+    // may have left half-built entities tracked on this same scoped
+    // DbContext, and SaveChanges would commit them.
+    private static Task ReleaseKeyAsync(IMesDbContext db, long rowId) =>
+        db.IdempotencyKeys.Where(k => k.Id == rowId).ExecuteDeleteAsync();
 
     private static async Task ReplayStoredResponseAsync(HttpContext ctx, IdempotencyKey row)
     {
