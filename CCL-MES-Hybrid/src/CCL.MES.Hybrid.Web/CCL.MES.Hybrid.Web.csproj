@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Web MVP (2026-09-25) — chạy CHÍNH giao diện CCL.MES.Hybrid.Razor trong trình
+    duyệt (Blazor Server) để máy xưởng Windows + Mac đăng nhập không cần cài app.
+    Tiến trình RIÊNG, cổng 5200; gọi API :5100 qua HTTP như app MAUI — không đụng
+    API, không đụng DB. Legacy src/CCL.MES.Web (đóng băng) KHÔNG liên quan.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CCL.MES.Hybrid.Web</RootNamespace>
+    <!-- Project không có .razor của riêng nó (chỉ _Host.cshtml) nên SDK KHÔNG tự kéo
+         tài nguyên JS của Blazor ⇒ _framework/blazor.server.js 404, trang trắng
+         (đo 25-09). Bật tường minh. -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CCL.MES.Hybrid.Razor\CCL.MES.Hybrid.Razor.csproj" />
+    <ProjectReference Include="..\CCL.MES.Hybrid.Client\CCL.MES.Hybrid.Client.csproj" />
+  </ItemGroup>
+
+</Project>

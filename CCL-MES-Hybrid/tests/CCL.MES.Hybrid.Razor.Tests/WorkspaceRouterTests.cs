@@ -29,6 +29,7 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 public sealed class WorkspaceRouterTests : TestContext
 {
     private readonly WindowManager _wm = new();
+    private readonly StubAuthSession _session = new();
 
     public WorkspaceRouterTests()
     {
@@ -37,7 +38,10 @@ public sealed class WorkspaceRouterTests : TestContext
         Services.AddSingleton<IWindowManager>(_wm);
         Services.AddSingleton<IWindowRegistry, WindowRegistry>();
         Services.AddSingleton<IFloatingWindowStore, InMemoryFloatingWindowStore>();
-        Services.AddSingleton<IAuthSession>(new StubAuthSession());
+        // MainLayout chỉ mở cửa sổ khi ĐÃ đăng nhập (2026-09-25) — đồng bộ phiên với
+        // SetAuthorized("qc-user") bên dưới, như người dùng thật sau khi login.
+        _session.SetUser("qc-user", "QC");
+        Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton<IConnectivityMonitor, AlwaysOnlineConnectivityMonitor>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
         // The PR2 window pages (e.g. QmsDashboard) inject ICclApiClient — the
@@ -304,5 +308,20 @@ public sealed class WorkspaceRouterTests : TestContext
         Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
         Assert.Empty(cut.FindAll(".route-body"));
         Assert.Single(cut.FindAll(".window-host"));
+    }
+
+    [Fact]
+    public async Task Deep_link_while_signed_out_opens_NO_window()
+    {
+        // 2026-09-25, lộ ra ở bản web: AuthorizeRouteView vẫn render MainLayout quanh
+        // NotAuthorized, và cửa sổ nổi dựng trang NGOÀI AuthorizeRouteView — mở thẳng
+        // /workorders khi chưa đăng nhập đã dựng trang + gọi API.
+        await _session.SignOutAsync();
+        NavTo("/workorders");
+
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+
+        Assert.Empty(_wm.Windows);
+        Assert.Empty(cut.FindAll(".window-host"));
     }
 }
