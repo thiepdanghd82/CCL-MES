@@ -89,6 +89,46 @@ public sealed class MacCatalystKeyboardFixRegressionTests
         Assert.Contains("window.webkit", body, StringComparison.Ordinal);
     }
 
+    // ── 2026-09-25 — Tab bị UIKit nuốt ở tầng NATIVE (lần báo thứ 3) ──
+    // Đầu dò keydown trên app thật: chữ / ArrowDown / Enter tới JS, còn Tab
+    // KHÔNG MỘT LẦN NÀO. Nên listener JS ở trên không bao giờ thấy Tab, và
+    // hai test grep phía trên xanh trong khi người dùng kẹt ở ô Tên đăng
+    // nhập. Bản sửa có HAI nửa phải đi cùng nhau — thiếu nửa nào cũng hỏng
+    // im lặng: native bắt Tab (priority) → gọi window.cclFocusMove trong trang.
+
+    private static string AppDelegatePath => Path.Combine(
+        RepoRoot, "CCL-MES-Hybrid", "src", "CCL.MES.Hybrid", "Platforms", "MacCatalyst", "AppDelegate.cs");
+
+    [Fact]
+    public void AppDelegate_captures_Tab_natively_with_priority_over_system()
+    {
+        Assert.True(File.Exists(AppDelegatePath), $"AppDelegate missing: {AppDelegatePath}");
+        var body = File.ReadAllText(AppDelegatePath);
+        Assert.Contains("UIKeyCommand.Create(new NSString(\"\\t\")", body, StringComparison.Ordinal);
+        Assert.Contains("UIKeyModifierFlags.Shift", body, StringComparison.Ordinal);
+        Assert.Contains("WantsPriorityOverSystemBehavior = true", body, StringComparison.Ordinal);
+        Assert.Contains("override UIKeyCommand[] KeyCommands", body, StringComparison.Ordinal);
+        Assert.Contains("window.cclFocusMove", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Component_exposes_cclFocusMove_for_the_native_Tab_path()
+    {
+        var body = File.ReadAllText(LayoutPath("MacCatalystKeyboardFix.razor"));
+        Assert.Contains("window.cclFocusMove = function", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Arrow_key_field_navigation_is_scoped_to_the_login_form_only()
+    {
+        // Mũi tên toàn cục sẽ cướp phím của ô Tìm nhanh + dropdown chọn kết quả.
+        var body = File.ReadAllText(LayoutPath("MacCatalystKeyboardFix.razor"));
+        Assert.Contains("t.form.name === 'login'", body, StringComparison.Ordinal);
+        var login = File.ReadAllText(Path.Combine(
+            RepoRoot, "CCL-MES-Hybrid", "src", "CCL.MES.Hybrid.Razor", "Pages", "Login.razor"));
+        Assert.Contains("name=\"login\"", login, StringComparison.Ordinal);
+    }
+
     // ── P10.6a hotfix — renderer crash containment ──────────────────
 
     [Theory]

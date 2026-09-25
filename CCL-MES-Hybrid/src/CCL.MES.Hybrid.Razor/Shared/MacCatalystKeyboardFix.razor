@@ -106,16 +106,41 @@
                 });
         }
 
+        // Chuyển focus sang ô kế / ô trước. Gọi từ HAI đường:
+        //   · native — AppDelegate bắt Tab bằng UIKeyCommand rồi gọi hàm này.
+        //     ĐO 2026-09-25: trên macOS hiện tại phím Tab KHÔNG tới JS nữa
+        //     (UIKit nuốt ở tầng native), nên nhánh keydown 'Tab' dưới đây
+        //     không bao giờ chạy; đường native là đường thật.
+        //   · keydown — giữ lại cho bản macOS còn giao Tab xuống trang.
+        // Không có gì đang focus (body) ⇒ vào ô đầu / ô cuối.
+        function moveFocus(back) {
+            var list = focusables();
+            if (list.length === 0) return false;
+            var idx = list.indexOf(document.activeElement);
+            var next = idx === -1
+                ? list[back ? list.length - 1 : 0]
+                : (list[idx + (back ? -1 : 1)] || list[back ? list.length - 1 : 0]);
+            if (next) next.focus();
+            return !!next;
+        }
+        window.cclFocusMove = function (back) { return moveFocus(!!back); };
+
         document.addEventListener('keydown', function (ev) {
             if (ev.code === 'Tab') {
-                var list = focusables();
-                var idx = list.indexOf(document.activeElement);
-                if (idx > -1) {
+                if (focusables().indexOf(document.activeElement) > -1) {
                     ev.preventDefault();
-                    var nextIdx = idx + (ev.shiftKey ? -1 : 1);
-                    var next = list[nextIdx] ||
-                               list[ev.shiftKey ? list.length - 1 : 0];
-                    if (next) next.focus();
+                    moveFocus(ev.shiftKey);
+                }
+                return;
+            }
+            // Mũi tên lên/xuống giữa các ô CHỈ trong form đăng nhập — người
+            // đứng máy quen bấm ↓ sang ô Mật khẩu. KHÔNG bật toàn cục: ô tìm
+            // nhanh và các dropdown cần mũi tên để chọn kết quả.
+            if (ev.code === 'ArrowDown' || ev.code === 'ArrowUp') {
+                var t = document.activeElement;
+                if (t && t.tagName === 'INPUT' && t.form && t.form.name === 'login') {
+                    ev.preventDefault();
+                    moveFocus(ev.code === 'ArrowUp');
                 }
                 return;
             }
