@@ -18,8 +18,11 @@ namespace CCL.MES.Api.Auth;
 ///
 /// <para><b>Giới hạn đã biết, nói ra chứ không giấu:</b> trạng thái nằm trong bộ
 /// nhớ tiến trình, khởi động lại API là mất. Với mối đe doạ thật ở đây — người
-/// đứng máy gõ tay — như thế là đủ: họ không khởi động lại được API. Đây KHÔNG
-/// phải bản thay thế cho lockout đăng nhập toàn hệ thống (Phase 7 còn treo).</para>
+/// đứng máy gõ tay — như thế là đủ: họ không khởi động lại được API.</para>
+///
+/// <para><b>Cũng dùng cho <c>/auth/login</c></b> (2026-09-25, trước khi mở API ra
+/// LAN) — một instance RIÊNG đăng ký keyed <see cref="ThrottleKeys.Login"/>, để
+/// hai bộ đếm không khoá chéo nhau.</para>
 /// </summary>
 public sealed class ReauthThrottle
 {
@@ -104,4 +107,10 @@ public sealed class ReauthThrottle
 
     private static string? Key(string? username) =>
         string.IsNullOrWhiteSpace(username) ? null : username.Trim();
+}
+
+/// <summary>Khoá DI cho các instance <see cref="ReauthThrottle"/> đăng ký keyed.</summary>
+public static class ThrottleKeys
+{
+    public const string Login = "login";
 }
