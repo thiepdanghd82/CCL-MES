@@ -35,6 +35,7 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 public sealed class WindowLayerRouteVisibilityTests : TestContext
 {
     private readonly WindowManager _wm = new();
+    private readonly StubAuthSession _session = new();
 
     public WindowLayerRouteVisibilityTests()
     {
@@ -43,7 +44,10 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
         Services.AddSingleton<IWindowManager>(_wm);
         Services.AddSingleton<IWindowRegistry, WindowRegistry>();
         Services.AddSingleton<IFloatingWindowStore, InMemoryFloatingWindowStore>();
-        Services.AddSingleton<IAuthSession>(new StubAuthSession());
+        // MainLayout chỉ mở cửa sổ khi ĐÃ đăng nhập (2026-09-25) — đồng bộ phiên với
+        // SetAuthorized("qc-user") bên dưới, như người dùng thật sau khi login.
+        _session.SetUser("qc-user", "QC");
+        Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton<IConnectivityMonitor, AlwaysOnlineConnectivityMonitor>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
         Services.AddSingleton<ICclApiClient>(new RecordingApi());

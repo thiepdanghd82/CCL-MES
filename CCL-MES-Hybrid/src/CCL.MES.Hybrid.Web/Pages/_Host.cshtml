@@ -1,0 +1,41 @@
+@page "/"
+@namespace CCL.MES.Hybrid.Web.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+}
+@* Bản web của CCL-MES-Hybrid/src/CCL.MES.Hybrid/wwwroot/index.html — GIỮ HAI FILE
+   ĐỒNG BỘ (cùng CSS, cùng thứ tự script). Khác duy nhất: blazor.server.js thay
+   blazor.webview.js, và root component render ServerPrerendered=false (render-mode
+   Server) vì nhiều component gọi JS ngay khi khởi tạo — prerender không có JS. *@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>CCL MES</title>
+    <base href="~/" />
+    <link href="_content/CCL.MES.Hybrid.Razor/css/app.css" rel="stylesheet" />
+    <link href="_content/CCL.MES.Hybrid.Razor/css/ix.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app"><component type="typeof(CCL.MES.Hybrid.Razor.App)" render-mode="Server" /></div>
+
+    <div id="blazor-error-ui">
+        Đã xảy ra lỗi.
+        <a href="" class="reload">Tải lại</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_content/CCL.MES.Hybrid.Razor/js/density.js"></script>
+    <script>window.cclMesDensity && window.cclMesDensity.boot();</script>
+    <script src="_framework/blazor.server.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/backup.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/lib/pdfjs/pdf.min.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/clipboard.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/floating-window.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/context-menu.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/print.js"></script>
+    <script src="_content/CCL.MES.Hybrid.Razor/js/iqc-svg-font.js"></script>
+</body>
+</html>

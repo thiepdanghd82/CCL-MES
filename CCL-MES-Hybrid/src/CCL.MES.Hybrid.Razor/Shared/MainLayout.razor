@@ -7,6 +7,7 @@
 @inject IFloatingWindowStore RectStore
 @inject NavigationManager Nav
 @inject CCL.MES.Hybrid.Client.Localization.ITranslator Loc
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
 @implements IDisposable
 @*
   Top-level layout. Sidebar nav on the left, content + connectivity
@@ -135,8 +136,12 @@
         // opens (or focuses, via dedupe) that window, then @Body shows the empty
         // workspace. Run once for the initial URL, then on every navigation.
         Nav.LocationChanged += OnLocationChanged;
+        Session.OnChange += OnSessionChanged;
         SyncWorkspaceRoute();
     }
+
+    // Đăng nhập xong (URL có thể không đổi) ⇒ mở cửa sổ của route hiện tại.
+    private void OnSessionChanged() => InvokeAsync(SyncWorkspaceRoute);
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
         => InvokeAsync(SyncWorkspaceRoute);
@@ -150,6 +155,22 @@
     // workspace (no window opens) rather than a double-rendered page.
     private void SyncWorkspaceRoute()
     {
+        // CHƯA ĐĂNG NHẬP ⇒ không mở cửa sổ nào (2026-09-25, lộ ra ở bản web).
+        // AuthorizeRouteView vẫn render MainLayout quanh nhánh NotAuthorized, và
+        // cửa sổ nổi render component trang NGOÀI AuthorizeRouteView — nên mở
+        // thẳng /workorders khi chưa đăng nhập đã dựng trang + gọi API (401).
+        // App Mac không có thanh địa chỉ nên chưa từng gặp; web thì có.
+        if (Session.CurrentUser.Identity?.IsAuthenticated != true)
+        {
+            if (_urlIsWindowRoute || _workspaceVisible)
+            {
+                _urlIsWindowRoute = false;
+                _workspaceVisible = false;
+                StateHasChanged();
+            }
+            return;
+        }
+
         var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/');
         if (path.Length == 0) path = "/";
 
@@ -431,6 +452,7 @@
         WM.Changed -= OnWindowsChanged;
         WM.Opened -= OnWindowOpened;
         Nav.LocationChanged -= OnLocationChanged;
+        Session.OnChange -= OnSessionChanged;
         // Không giải phóng thì JS còn giữ tham chiếu tới component đã chết và
         // mỗi lần resize sẽ gọi vào một đối tượng không còn hợp lệ.
         _railRef?.Dispose();
