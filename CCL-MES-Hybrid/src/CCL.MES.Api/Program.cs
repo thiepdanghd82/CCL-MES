@@ -178,6 +178,10 @@ builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 // chung cho mọi request, nếu scoped thì mỗi lần gõ sai là một bộ đếm mới và
 // việc khoá thành vô nghĩa.
 builder.Services.AddSingleton<CCL.MES.Api.Auth.ReauthThrottle>();
+// Cùng cơ chế, bộ đếm RIÊNG cho /auth/login (2026-09-25, trước khi mở API ra
+// LAN). Tách instance để gõ sai ở ô ký không khoá đăng nhập và ngược lại.
+builder.Services.AddKeyedSingleton<CCL.MES.Api.Auth.ReauthThrottle>(
+    CCL.MES.Api.Auth.ThrottleKeys.Login);
 // Đối chiếu chữ ký tại điểm ký — DÙNG CHUNG cho phán định IPQC và waiver vật tư.
 // Scoped vì nó cầm MesDbContext; ReauthThrottle vẫn singleton nên bộ đếm khoá
 // sống xuyên request (nếu không thì thử-sai reset mỗi lần bấm = không hãm gì cả).

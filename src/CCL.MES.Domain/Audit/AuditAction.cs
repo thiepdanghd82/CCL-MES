@@ -61,6 +61,7 @@ public static class AuditAction
     public const string IqcSpecItemReactivated = "IQC_SPEC_ITEM_REACTIVATED"; // P12 bước 2b
     public const string LoginDisabled         = "LOGIN_DISABLED";          // valid creds but IsActive = false
     public const string LoginFail             = "LOGIN_FAIL";              // wrong username OR wrong password (same code — no oracle)
+    public const string LoginLocked           = "LOGIN_LOCKED";            // typed username is throttled after repeated fails (any username — no oracle)
     public const string LoginOk               = "LOGIN_OK";
     public const string Logout                = "LOGOUT";
     public const string NpiImport             = "NPI_IMPORT";              // Phase 7 — NPI master CSV replace-all import; detail JSON: { table, parsed, inserted, skipped, backup_file, backup_sha256, elapsed_ms }

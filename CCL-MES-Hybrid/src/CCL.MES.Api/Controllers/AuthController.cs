@@ -32,6 +32,7 @@ public sealed class AuthController : ControllerBase
     private readonly IRefreshTokenStore _refreshStore;
     private readonly IAuditWriter _audit;
     private readonly Auth.JwtOptions _jwtOpts;
+    private readonly ReauthThrottle _loginThrottle;
 
     public AuthController(
         IMesDbContext db,
@@ -39,7 +40,8 @@ public sealed class AuthController : ControllerBase
         JwtTokenIssuer tokens,
         IRefreshTokenStore refreshStore,
         IAuditWriter audit,
-        Microsoft.Extensions.Options.IOptions<Auth.JwtOptions> jwtOpts)
+        Microsoft.Extensions.Options.IOptions<Auth.JwtOptions> jwtOpts,
+        [FromKeyedServices(ThrottleKeys.Login)] ReauthThrottle loginThrottle)
     {
         _db = db;
         _hasher = hasher;
@@ -47,6 +49,7 @@ public sealed class AuthController : ControllerBase
         _refreshStore = refreshStore;
         _audit = audit;
         _jwtOpts = jwtOpts.Value;
+        _loginThrottle = loginThrottle;
     }
 
     [HttpPost("login")]
@@ -59,6 +62,28 @@ public sealed class AuthController : ControllerBase
             return BadRequest(ApiError.Of("auth.missing_fields", "Username and password required."));
 
         var username = req.Username.Trim();
+
+        // Hãm thử-sai TRƯỚC khi so mật khẩu (2026-09-25, trước khi mở API ra LAN):
+        // đang khoá thì gõ ĐÚNG cũng bị từ chối, nên không dò tiếp được. Khoá
+        // theo TÊN GÕ VÀO — kể cả tên không tồn tại — để việc bị khoá không trở
+        // thành cách dò tài khoản nào có thật (cùng chính sách lỗi chung ở dưới).
+        if (_loginThrottle.LockedFor(username) is { } left)
+        {
+            await _audit.EmitAsync(
+                AuditAction.LoginLocked,
+                actor: "anonymous", actorRole: "",
+                targetType: "User", targetId: null,
+                detail: JsonSerializer.Serialize(new
+                {
+                    typed_username = username,
+                    device_id = req.DeviceId,
+                    retry_after_sec = (int)Math.Ceiling(left.TotalSeconds),
+                }));
+            Response.Headers.RetryAfter = ((int)Math.Ceiling(left.TotalSeconds)).ToString();
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                ApiError.Of("auth.locked", "Too many failed sign-in attempts. Try again later."));
+        }
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
 
         // Same generic error for "user not found" + "wrong password" so attackers
@@ -71,6 +96,7 @@ public sealed class AuthController : ControllerBase
                 actor: "anonymous", actorRole: "",
                 targetType: "User", targetId: null,
                 detail: JsonSerializer.Serialize(new { typed_username = username, device_id = req.DeviceId }));
+            _loginThrottle.RegisterFailure(username);
             return Unauthorized(ApiError.Of("auth.invalid_credentials", "Invalid username or password."));
         }
 
@@ -86,6 +112,7 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(ApiError.Of("auth.invalid_credentials", "Invalid username or password."));
         }
 
+        _loginThrottle.RegisterSuccess(username);
         var now = DateTime.UtcNow;
         var resp = IssueTokenPair(user, now, familyId: Guid.NewGuid());
 

@@ -210,6 +210,7 @@
     private string LocaliseError(string code) => code switch
     {
         "auth.invalid_credentials" => T("login.err.invalid"),
+        "auth.locked"              => T("login.err.locked"),
         "auth.missing_fields"      => T("login.err.missing"),
         "auth.network_error"       => T("login.err.network"),
         "auth.timeout"             => T("login.err.timeout"),
