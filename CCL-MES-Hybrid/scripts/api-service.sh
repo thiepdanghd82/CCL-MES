@@ -33,7 +33,20 @@ ROOT="$(cd "$here/.." && pwd)"          # CCL-MES-Hybrid
 REPO="$(cd "$ROOT/.." && pwd)"          # gốc repo
 APIDIR="$ROOT/src/CCL.MES.Api"
 DB="$REPO/data/ccl_mes.db"
-URL="http://localhost:5100"
+URL="http://localhost:5100"             # chỉ để tự kiểm /health trên chính máy này
+# ─────────────────────────────────────────────────────────────────────────────
+# ĐỊA CHỈ LẮNG NGHE — tách khỏi URL ở trên (2026-09-25, mở API ra LAN xưởng).
+#   CCL_API_BIND_URL=http://0.0.0.0:5100 bash api-service.sh install   # mở LAN
+#   CCL_API_BIND_URL=http://localhost:5100 bash api-service.sh install # đóng lại
+# KHÔNG đặt biến ⇒ GIỮ giá trị đang cài trong plist, để một lần `install` sau
+# này không lặng lẽ đóng LAN (cả xưởng mất kết nối) hay lặng lẽ mở nó.
+# Chỉ mở LAN khi mật khẩu mặc định đã đổi hết + /auth/login có lockout (#260).
+BIND_URL="${CCL_API_BIND_URL:-$(plutil -extract EnvironmentVariables.ASPNETCORE_URLS raw "$PLIST" 2>/dev/null)}"
+BIND_URL="${BIND_URL:-http://localhost:5100}"
+# Truyền bằng --urls (dòng lệnh), KHÔNG chỉ ASPNETCORE_URLS: appsettings.json có
+# "Urls": "http://localhost:5100", và WebApplicationBuilder nạp appsettings SAU
+# biến ASPNETCORE_* nên đè mất nó (đo 25-09: plist đặt 0.0.0.0 mà log vẫn
+# "Now listening on: http://localhost:5100"). Dòng lệnh là nguồn cuối, thắng hết.
 # ─────────────────────────────────────────────────────────────────────────────
 # LOG — KHÔNG để ở /tmp. macOS dọn /tmp theo chu kỳ, nên log sản xuất đặt ở đó
 # là log biến mất đúng lúc cần nhất: máy vừa khởi động lại sau sự cố thì không
@@ -117,12 +130,12 @@ write_plist() {
 <dict>
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
-  <array><string>$BIN</string></array>
+  <array><string>$BIN</string><string>--urls</string><string>$BIND_URL</string></array>
   <key>WorkingDirectory</key><string>$APIDIR</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>ASPNETCORE_ENVIRONMENT</key><string>$ENVNAME</string>
-    <key>ASPNETCORE_URLS</key><string>$URL</string>
+    <key>ASPNETCORE_URLS</key><string>$BIND_URL</string>
     <key>MES_DB_PATH</key><string>$DB</string>
   </dict>
   <key>RunAtLoad</key><true/>
@@ -192,6 +205,12 @@ cmd_status() {
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$URL/api/v2/health" 2>/dev/null)"
   say "tiến trình : ${pid:-KHÔNG CHẠY}"
   say "cổng 5100  : ${port:+đang lắng nghe}${port:-trống}"
+  local scope; scope="$(lsof -nP -iTCP:5100 -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $9}' | tr '\n' ' ')"
+  case "$scope" in
+    *'*:5100'*|*'0.0.0.0:5100'*) say "phạm vi    : CẢ MẠNG LAN ($scope) — máy xưởng dùng http://$(ipconfig getifaddr en0 2>/dev/null || echo '<IP>'):5100" ;;
+    '')                          ;;
+    *)                           say "phạm vi    : chỉ máy này ($scope)" ;;
+  esac
   say "/health    : HTTP ${code:-000}"
   say "dịch vụ    : $([ -f "$PLIST" ] && echo 'đã cài (tự dựng lại khi chết)' || echo 'chưa cài — chạy tay')"
   if [ "${code:-000}" != "200" ]; then
