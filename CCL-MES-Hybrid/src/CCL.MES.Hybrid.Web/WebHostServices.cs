@@ -2,6 +2,7 @@ using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Localization;
 using CCL.MES.Hybrid.Razor;
+using CCL.MES.Hybrid.Web.Session;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -30,6 +31,9 @@ public static class WebHostServices
     public static readonly IReadOnlySet<Type> SharedSingletons = new HashSet<Type>
     {
         typeof(ITranslationCatalog),   // bảng dịch tĩnh, dựng một lần trong ctor
+        // Hai cái dưới dùng chung là CỐ Ý — trạng thái phân theo khoá không đoán được:
+        typeof(WebSessionStore),       // phiên theo khoá ngẫu nhiên 256-bit trong cookie của từng người
+        typeof(RefreshCoalescer),      // kết quả làm mới theo SHA-256 của refresh token của từng phiên
     };
 
     public static IServiceCollection AddCclWebHost(this IServiceCollection services, IConfiguration configuration)
@@ -37,9 +41,21 @@ public static class WebHostServices
         services.AddCclHybridClient(configuration);
         ScopeAppServicesPerUser(services);
 
-        // Phần 1: token chỉ sống trong circuit. Phần 2 thêm cookie để tải lại trang không mất phiên.
+        // Phần 2 — phiên giữ bằng cookie mã hoá theo ca (12 giờ): token nằm phía server
+        // (WebSessionStore), cookie chỉ mang khoá phiên. Xem Session/*.
+        services.AddOptions<WebSessionOptions>().Bind(configuration.GetSection("WebSession"));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddDataProtection();
+        services.AddSingleton<WebSessionStore>();
+        services.AddScoped<WebCircuitSession>();
+        services.AddScoped<IWebSessionCookie, JsWebSessionCookie>();
         services.RemoveAll<ITokenStore>();
-        services.AddScoped<ITokenStore, InMemoryTokenStore>();
+        services.AddScoped<ITokenStore, WebTokenStore>();
+        services.AddScoped<WebSessionBootstrapper>();
+        services.AddSingleton<RefreshCoalescer>();
+        services.AddTransient<RefreshCoalescingHandler>();
+        services.AddHttpClient(ServiceCollectionExtensions.RefreshHttpClientName)
+            .AddHttpMessageHandler<RefreshCoalescingHandler>();
 
         services.RemoveAll<ICclApiClient>();
         services.AddScoped<ICclApiClient>(sp =>

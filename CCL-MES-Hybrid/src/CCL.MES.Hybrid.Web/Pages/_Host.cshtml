@@ -1,8 +1,14 @@
 @page "/"
 @namespace CCL.MES.Hybrid.Web.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using CCL.MES.Hybrid.Web.Session
+@inject WebSessionStore Sessions
+@inject Microsoft.AspNetCore.DataProtection.IDataProtectionProvider DataProtection
 @{
     Layout = null;
+    // Trang host mang khoá phiên (đã mã hoá trong tham số component) ⇒ không cache.
+    Response.Headers.CacheControl = "no-store";
+    var sessionKey = WebSessionCookie.ResolveForHostPage(HttpContext, DataProtection, Sessions);
 }
 @* Bản web của CCL-MES-Hybrid/src/CCL.MES.Hybrid/wwwroot/index.html — GIỮ HAI FILE
    ĐỒNG BỘ (cùng CSS, cùng thứ tự script). Khác duy nhất: blazor.server.js thay
@@ -19,7 +25,7 @@
     <link href="_content/CCL.MES.Hybrid.Razor/css/ix.css" rel="stylesheet" />
 </head>
 <body>
-    <div id="app"><component type="typeof(CCL.MES.Hybrid.Razor.App)" render-mode="Server" /></div>
+    <div id="app"><component type="typeof(CCL.MES.Hybrid.Web.WebRoot)" render-mode="Server" param-SessionKey="@sessionKey" /></div>
 
     <div id="blazor-error-ui">
         Đã xảy ra lỗi.
@@ -29,6 +35,7 @@
 
     <script src="_content/CCL.MES.Hybrid.Razor/js/density.js"></script>
     <script>window.cclMesDensity && window.cclMesDensity.boot();</script>
+    <script src="js/web-session.js"></script>
     <script src="_framework/blazor.server.js"></script>
     <script src="_content/CCL.MES.Hybrid.Razor/js/backup.js"></script>
     <script src="_content/CCL.MES.Hybrid.Razor/lib/pdfjs/pdf.min.js"></script>

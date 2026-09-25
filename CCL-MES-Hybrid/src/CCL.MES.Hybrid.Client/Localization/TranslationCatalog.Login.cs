@@ -36,6 +36,7 @@ public sealed partial class TranslationCatalog
                                    "Could not connect to the server. Check your network and try again.");
         Add("login.err.timeout",   "Máy chủ phản hồi quá lâu. Vui lòng thử lại.",   "The server took too long to respond. Please try again.");
         Add("login.err.locked",    "Tài khoản đang tạm khoá do đăng nhập sai nhiều lần. Thử lại sau ít phút.", "Too many failed sign-in attempts — this account is temporarily locked. Try again in a few minutes.");
+        Add("web.session.restoring",  "Đang khôi phục phiên đăng nhập…",           "Restoring your session…");
         Add("login.err.generic",   "Đăng nhập thất bại. Vui lòng thử lại.",         "Login failed. Please try again.");
     }
 }

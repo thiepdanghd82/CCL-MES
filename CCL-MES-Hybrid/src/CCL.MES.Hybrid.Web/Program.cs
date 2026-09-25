@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Web;
+using CCL.MES.Hybrid.Web.Session;
 
 // Web MVP — giao diện CCL.MES.Hybrid.Razor chạy trong trình duyệt (Blazor Server).
 // Mô hình _Host + MapBlazorHub + fallback: MỌI đường dẫn trả cùng một trang host,
@@ -23,6 +24,7 @@ app.UseRouting();
 // .NET 9+: _framework/blazor.server.js được phục vụ qua MapStaticAssets, KHÔNG qua
 // UseStaticFiles (đo 25-09: chỉ UseStaticFiles ⇒ blazor.server.js 404, trang trắng).
 app.MapStaticAssets();
+app.MapWebSessionEndpoints();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
