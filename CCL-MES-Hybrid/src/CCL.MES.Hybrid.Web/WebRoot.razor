@@ -1,0 +1,39 @@
+@*
+  Component gốc của web host (2026-09-25, phần 2). Bọc NGUYÊN CCL.MES.Hybrid.Razor.App:
+  trước khi giao diện render, gắn khoá phiên từ cookie (trang _Host đọc giúp) cho tab
+  này và khôi phục phiên — nếu render trước, router đá sang /login rồi mới quay lại.
+*@
+@using CCL.MES.Hybrid.Web.Session
+@inject WebCircuitSession Circuit
+@inject WebSessionBootstrapper Bootstrapper
+@inject CCL.MES.Hybrid.Client.Localization.ITranslator Loc
+
+@if (_ready)
+{
+    <CCL.MES.Hybrid.Razor.App />
+}
+else
+{
+    <div class="p-3" role="status">@Loc.T("web.session.restoring")</div>
+}
+
+@code {
+    /// <summary>Khoá phiên còn sống (đã giải mã từ cookie), hoặc null. Tham số của
+    /// component render-mode Server được Blazor mã hoá trong trang — JS không đọc được.</summary>
+    [Parameter] public string? SessionKey { get; set; }
+
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Circuit.Key = SessionKey;
+        try
+        {
+            await Bootstrapper.RestoreAsync();
+        }
+        finally
+        {
+            _ready = true;
+        }
+    }
+}
