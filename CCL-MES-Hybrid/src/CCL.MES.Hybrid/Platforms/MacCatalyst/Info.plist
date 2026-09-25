@@ -77,6 +77,8 @@
 	-->
 	<key>NSCameraUsageDescription</key>
 	<string>CCL MES sử dụng camera để quét mã vạch / QR cho các quy trình production (acceptance Work Order, sample tracking, IPQC). Camera chỉ chạy khi bạn mở chức năng quét — không có background access.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>CCL MES kết nối tới máy chủ MES trong mạng nội bộ của xưởng để đăng nhập và đồng bộ dữ liệu sản xuất.</string>
 
 	<key>NSAppTransportSecurity</key>
 	<dict>

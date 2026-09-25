@@ -47,35 +47,39 @@ public static class MauiProgram
         // stream from the platform-specific file system. Operators can
         // ship a stationspecific copy by replacing the asset before sign.
         var asm = typeof(MauiProgram).GetTypeInfo().Assembly;
-        var configBuilder = new ConfigurationBuilder();
-        // The JsonStreamConfigurationProvider reads the stream lazily on
-        // Build(), so we MUST keep it alive past this scope — using/dispose
-        // here closes it too early and we surface "Stream was not readable".
-        // We materialise the JSON into memory + hand a fresh MemoryStream
-        // each time the provider reloads so disposal is harmless.
-        var settingsStream = asm.GetManifestResourceStream("CCL.MES.Hybrid.appsettings.json");
-        if (settingsStream is not null)
+        // Materialise the bundled JSON into a byte[] ONCE. AddJsonStream reads a
+        // stream exactly once, so every Build() must get a FRESH MemoryStream —
+        // StationConfig.Build does that (building twice on the same stream
+        // crashed the app at boot with "Stream was not readable", 2026-09-25).
+        byte[]? bundledJson = null;
+        using (var settingsStream = asm.GetManifestResourceStream("CCL.MES.Hybrid.appsettings.json"))
         {
-            using var ms = new MemoryStream();
-            settingsStream.CopyTo(ms);
-            settingsStream.Dispose();
-            var bytes = ms.ToArray();
-            configBuilder.AddJsonStream(new MemoryStream(bytes, writable: false));
-#if DEBUG
-            Console.WriteLine($"[boot] appsettings.json loaded — {bytes.Length} bytes.");
-#endif
+            if (settingsStream is not null)
+            {
+                using var ms = new MemoryStream();
+                settingsStream.CopyTo(ms);
+                bundledJson = ms.ToArray();
+            }
         }
 #if DEBUG
-        else
-        {
-            Console.WriteLine("[boot] WARN: appsettings.json manifest stream is null — defaults will apply.");
-        }
+        Console.WriteLine(bundledJson is null
+            ? "[boot] WARN: appsettings.json manifest stream is null — defaults will apply."
+            : $"[boot] appsettings.json loaded — {bundledJson.Length} bytes.");
 #endif
-        var configuration = configBuilder.Build();
+
+        // Địa chỉ server theo TỪNG MÁY (file cấp máy + biến môi trường) đè lên
+        // giá trị đóng gói — xưởng có cả Windows lẫn Mac, không build lại cho
+        // từng máy. Xem StationConfig.
+        var machineFile = StationConfig.MachineFilePath(
+            isWindows: OperatingSystem.IsWindows(),
+            isMac: OperatingSystem.IsMacCatalyst() || OperatingSystem.IsMacOS());
+        var (configuration, baseUrlSource, baseUrlError) = StationConfig.Build(bundledJson, machineFile);
+        if (baseUrlError is not null)
+            Console.WriteLine($"[boot] ERROR CclApi:BaseUrl override invalid ({baseUrlError}) — using bundled value.");
         builder.Configuration.AddConfiguration(configuration);
-#if DEBUG
-        Console.WriteLine($"[boot] CclApi:BaseUrl resolved => {configuration["CclApi:BaseUrl"] ?? "(null)"}");
-#endif
+        // LUÔN in, kể cả Release: "máy này đang nói chuyện với server nào" là câu
+        // đầu tiên khi một máy xưởng báo không đăng nhập được. URL không phải bí mật.
+        Console.WriteLine($"[boot] CclApi:BaseUrl => {configuration[StationConfig.BaseUrlKey] ?? "(null)"} (source: {baseUrlSource})");
 
         builder.Services.AddMauiBlazorWebView();
 #if DEBUG
