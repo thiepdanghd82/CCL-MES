@@ -243,13 +243,16 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
         await _factory.SeedUserAsync(otherUsername, "pass1234", "Admin");
         await _factory.LoginAndAuthenticateAsync(client2, otherUsername, "pass1234");
 
+        // Valid If-Match so the call succeeds — only 2xx responses are
+        // stored (contract §6.2), so a 428 here would leave no row.
         var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/work-orders/{_woId}/advance");
+        req.Headers.TryAddWithoutValidation("If-Match", $"\"{await CurrentEtagAsync()}\"");
         req.Headers.Add("Idempotency-Key", key);
         var rsp = await client2.SendAsync(req);
 
         // No 409 — the (key, actor) tuple is the natural-key. Different
-        // actor → fresh row. (May 200 or domain-guard 200 depending on
-        // current WO state; what matters is no replay collision.)
+        // actor → fresh row, executed for real (not a replay).
+        Assert.Equal(HttpStatusCode.OK, rsp.StatusCode);
         Assert.False(rsp.Headers.Contains("Idempotency-Replayed"));
 
         using var scope = _factory.Services.CreateScope();
@@ -351,7 +354,45 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
         Assert.Equal(firstCount, secondCount);
     }
 
+    // ── 13. Failed response is NOT stored — same key retries for real ─
+    // Contract §6.2 bước 2 chỉ replay kết quả thành công. Trước đây
+    // middleware lưu cả 422: người dùng sửa xong nguyên nhân rồi gửi lại
+    // cùng key vẫn nhận đúng lỗi cũ (Idempotency-Replayed: true).
+
+    [Fact]
+    public async Task Failed_response_is_not_stored_and_same_key_re_executes_after_fix()
+    {
+        var key = Guid.NewGuid().ToString();
+        var stepBefore = await ReadCurrentStepAsync();
+
+        // Lần 1: If-Match cũ → 409, downstream không đổi gì.
+        var rsp1 = await PostAdvanceWithEtagAsync(key, "stale-etag");
+        Assert.False(rsp1.IsSuccessStatusCode, $"expected a 4xx for a stale If-Match, got {(int)rsp1.StatusCode}");
+        Assert.Equal(stepBefore, await ReadCurrentStepAsync());
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            Assert.Equal(0, await db.IdempotencyKeys.CountAsync(k => k.KeyValue == key));
+        }
+
+        // Lần 2: cùng key, ETag đúng → phải chạy thật, không replay 409.
+        var rsp2 = await PostAdvanceAsync(key);
+
+        Assert.Equal(HttpStatusCode.OK, rsp2.StatusCode);
+        Assert.False(rsp2.Headers.Contains("Idempotency-Replayed"));
+        Assert.NotEqual(stepBefore, await ReadCurrentStepAsync());
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
+
+    private async Task<HttpResponseMessage> PostAdvanceWithEtagAsync(string key, string etag)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/work-orders/{_woId}/advance");
+        req.Headers.TryAddWithoutValidation("If-Match", $"\"{etag}\"");
+        req.Headers.Add("Idempotency-Key", key);
+        return await _client.SendAsync(req);
+    }
 
     private async Task<HttpResponseMessage> PostAdvanceAsync(string key)
     {
