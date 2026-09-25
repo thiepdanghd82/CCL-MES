@@ -62,10 +62,17 @@ else
         {
             <div class="hw-pill hw-pill-probing">@T("wo.camera.checking")</div>
         }
-        else if (!_availability.IsAvailable)
+        else
         {
-            <div class="scan-banner">
+        @* Camera không dùng được (web chưa có camera; Mac bị từ chối quyền…) ⇒
+           CHỈ tắt nút "Quét WO". Ô nhập tay + danh sách + dashboard vẫn chạy —
+           ô nhập tay sinh ra chính là đường dự phòng cho máy quét (Henry duyệt
+           2026-09-25; trước đây camera lỗi ẩn TOÀN BỘ trang). *@
+        @if (!_availability.IsAvailable)
+        {
+            <div class="scan-banner" data-testid="wo-camera-unavailable">
                 <strong>@(_availability.OperatorMessage ?? _availability.Reason)</strong>
+                <div class="scan-banner-help">@T("wo.camera.manualhint")</div>
             </div>
             @if (_availability.Reason == "permission_denied")
             {
@@ -82,8 +89,6 @@ else
                 }
             }
         }
-        else
-        {
             @*  P10.7a-1.3 — manual WO entry sits inline AFTER "Scan WO" on the
                 same row (compact, height-matched). Plain <input> + @bind:event
                 "oninput" + Enter handler — NO <InputText> per the renderer-crash
@@ -92,7 +97,7 @@ else
                 RecentScans / lookup behave identically — no logic fork. *@
             <div class="wo-cta-row">
                 <button type="button" class="scan-btn wo-cta-primary"
-                        disabled="@(_scanning || _advancing || _lookingUp)"
+                        disabled="@(_scanning || _advancing || _lookingUp || !_availability.IsAvailable)"
                         @onclick="OnScan">
                     @(_scanning ? T("wo.scan.opening") : T("wo.scan.button"))
                 </button>
@@ -648,6 +653,8 @@ else
 
     private async Task OnScan()
     {
+        // Nút đã tắt khi camera không dùng được; chốt lại ở đây cho chắc.
+        if (_availability is not { IsAvailable: true }) return;
         ResetState();
         _scanning = true;
         try

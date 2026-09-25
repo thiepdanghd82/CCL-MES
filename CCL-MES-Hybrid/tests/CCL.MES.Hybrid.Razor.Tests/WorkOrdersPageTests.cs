@@ -68,6 +68,47 @@ public sealed class WorkOrdersPageTests : TestContext
         Assert.NotNull(cut.Find("input.wo-manual-input"));
     }
 
+    // ── Camera không dùng được (web chưa có camera; Mac bị từ chối quyền) ──
+    // Henry duyệt 2026-09-25: CHỈ tắt nút Quét; ô nhập tay + danh sách + dashboard
+    // vẫn chạy. Trước đây camera lỗi ẩn TOÀN BỘ trang ⇒ web không dùng được gì.
+
+    private void CameraUnavailable()
+        => ((StubScannerService)Services.GetRequiredService<IBarcodeScannerService>()).RaiseAvailable = false;
+
+    [Fact]
+    public void Camera_unavailable_keeps_manual_entry_and_disables_only_the_scan_button()
+    {
+        CameraUnavailable();
+        var cut = RenderComponent<WorkOrders>();
+
+        Assert.NotNull(cut.Find("[data-testid='wo-camera-unavailable']"));
+        Assert.NotNull(cut.Find("input.wo-manual-input"));
+        Assert.True(cut.Find("button.wo-cta-primary").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Camera_unavailable_manual_lookup_still_opens_the_WO()
+    {
+        CameraUnavailable();
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(SampleSummary(woNo));
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3684");
+        cut.Find("button.wo-find-btn").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("WO-26-3684", cut.Find("div.wo-card-wo").TextContent));
+        Assert.Equal("MANUAL", Assert.Single(api.ScanLogCalls).Format);
+    }
+
+    [Fact]
+    public void Camera_available_has_no_unavailable_banner_and_scan_enabled()
+    {
+        var cut = RenderComponent<WorkOrders>();
+        Assert.Empty(cut.FindAll("[data-testid='wo-camera-unavailable']"));
+        Assert.False(cut.Find("button.wo-cta-primary").HasAttribute("disabled"));
+    }
+
     [Fact]
     public void Manual_entry_Find_button_disabled_until_three_chars()
     {

@@ -17,6 +17,7 @@ public sealed partial class TranslationCatalog
 
         // Camera / settings.
         Add("wo.camera.checking",        "Đang kiểm tra camera…",                       "Checking camera…");
+        Add("wo.camera.manualhint",      "Vẫn nhập được mã WO bằng tay hoặc bằng máy quét USB ở ô bên dưới.", "You can still enter the WO code by hand or with a USB scanner in the box below.");
         Add("wo.settings.opening",       "Đang mở…",                                    "Opening…");
         Add("wo.settings.open",          "Mở Cài đặt hệ thống",                         "Open System Settings");
         Add("wo.settings.openfailed",    "Không thể mở Cài đặt tự động. Vào Apple Menu → System Settings → Privacy & Security → Camera để cấp quyền cho CCL MES.",
